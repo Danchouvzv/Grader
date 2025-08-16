@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>grader.ai</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/jpeg" href="logo.jpg">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <style>
+    body {
+      font-family: 'Poppins', Arial, sans-serif;
+      background: linear-gradient(to bottom right, #ffffff, #f0f4f8);
+      min-height: 100vh;
+    }
+    .navbar-brand .grader { color: #e53935; font-weight: 900; }
+    .navbar-brand .ai { color: #1976d2; font-weight: 900; }
+    .navbar-brand img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-right: 10px;
+    }
+    .nav-pills .nav-link.active {
+        background-color: #1976d2;
+    }
+    .nav-pills .nav-link {
+        color: #1976d2;
+    }
+    .card {
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border-radius: 16px;
+    }
+    .footer { text-align: center; color: #888; margin-top: 4rem; padding-bottom: 2rem; font-size: 1em; }
+    .mic-pulse {
+      display: inline-block;
+      animation: pulse 1.2s infinite;
+      color: #e53935;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .loader-dots span {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin: 0 3px;
+      background: #1976d2;
+      border-radius: 50%;
+      animation: loader-bounce 1.2s infinite both;
+    }
+    .loader-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .loader-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes loader-bounce {
+      0%, 80%, 100% { transform: scale(0.8); }
+      40% { transform: scale(1.3); }
+    }
+    .assessment-card {
+      border-left: 4px solid #1976d2;
+    }
+    .assessment-card .card-header {
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .form-label {
+      font-weight: 500;
+      color: #495057;
+    }
+    .career-section {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-light bg-white shadow-sm">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center" href="#">
+      <img src="logo.jpg" alt="grader.ai logo">
+      <span class="fs-4"><span class="grader">grader</span><span class="ai">.ai</span></span>
+    </a>
+  </div>
+</nav>
+
+<main class="container mt-4 mb-5">
+  <ul class="nav nav-pills mb-3" id="mainTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="ielts-tab" data-bs-toggle="tab" data-bs-target="#ielts" type="button" role="tab">IELTS Grader</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="career-tab" data-bs-toggle="tab" data-bs-target="#career" type="button" role="tab">Career Guidance</button>
+    </li>
+  </ul>
+  <div class="tab-content" id="mainTabsContent">
+      <!-- IELTS Grader Tab -->
+      <div class="tab-pane fade show active" id="ielts" role="tabpanel">
+        <div class="card p-4 mb-4">
+          <h2 class="mb-3">IELTS Speaking Grader</h2>
+          <div class="mb-3">
+            <label class="form-label">Question</label>
+            <div class="d-flex align-items-center gap-2">
+              <span id="question" class="fw-semibold">Loading question...</span>
+              <button class="btn btn-outline-secondary btn-sm" id="newQBtn" title="New Question"><span class="bi bi-arrow-repeat"></span> New</button>
+            </div>
+          </div>
+          <div class="audio-controls mb-3">
+            <button class="btn btn-success" id="recordBtn"><span class="bi bi-mic-fill"></span> Start Recording</button>
+            <button class="btn btn-danger" id="stopBtn" disabled><span class="bi bi-stop-fill"></span> Stop</button>
+            <div id="micAnimation" style="display:none; margin-left: 16px;">
+              <div class="mic-pulse">
+                <span class="bi bi-mic-fill" style="font-size:2.2rem;"></span>
+              </div>
+            </div>
+          </div>
+          <audio id="audioPlayer" controls style="width:100%; display:none;"></audio>
+          <div id="transcribeLoader" style="display:none; text-align:center; margin-top:1.5rem;">
+            <div class="loader-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <div style="margin-top:0.5rem; color:#1976d2; font-weight:500;">Transcribing and assessing...</div>
+          </div>
+          <div class="alert alert-info mt-3" id="result" style="display:none;"></div>
+        </div>
+      </div>
+      <!-- Career Guidance Tab -->
+      <div class="tab-pane fade" id="career" role="tabpanel">
+        <div class="card p-4 mb-4">
+          <h2 class="mb-3">AI Career Counselling</h2>
+          <p class="text-muted mb-4">Get personalized career guidance based on your profile, interests, and goals.</p>
+          
+          <!-- Assessment Questions Section -->
+          <div class="mb-4">
+            <h5 class="mb-3">Career Assessment Questionnaire</h5>
+            <p class="text-muted small">Answer these questions to help us better understand your preferences and strengths.</p>
+            <div id="assessmentQuestions" class="mb-3"></div>
+            <button class="btn btn-outline-primary btn-sm" id="loadAssessmentBtn">
+              <span class="bi bi-question-circle"></span> Load Assessment Questions
+            </button>
+          </div>
+          
+          <hr class="my-4">
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="academicBackground" class="form-label">Academic Background</label>
+                <textarea id="academicBackground" class="form-control" rows="3" placeholder="Current education level, GPA, test scores (SAT, ACT, etc.), subjects you excel at..."></textarea>
+              </div>
+              
+              <div class="mb-3">
+                <label for="interests" class="form-label">Interests & Hobbies</label>
+                <textarea id="interests" class="form-control" rows="3" placeholder="What activities do you enjoy? What subjects interest you most? Any hobbies or extracurriculars..."></textarea>
+              </div>
+              
+              <div class="mb-3">
+                <label for="skills" class="form-label">Skills & Strengths</label>
+                <textarea id="skills" class="form-control" rows="3" placeholder="Technical skills, soft skills, languages, certifications, work experience..."></textarea>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="goals" class="form-label">Career Goals</label>
+                <textarea id="goals" class="form-control" rows="3" placeholder="What type of work interests you? Any specific industries or roles? Short-term and long-term goals..."></textarea>
+              </div>
+              
+              <div class="mb-3">
+                <label for="constraints" class="form-label">Constraints & Preferences</label>
+                <textarea id="constraints" class="form-control" rows="3" placeholder="Location preferences, salary expectations, work-life balance needs, any limitations..."></textarea>
+              </div>
+              
+              <div class="mb-3">
+                <label for="additionalInfo" class="form-label">Additional Information</label>
+                <textarea id="additionalInfo" class="form-control" rows="3" placeholder="Any other relevant information about your background, experiences, or specific questions..."></textarea>
+              </div>
+            </div>
+          </div>
+          
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary" id="careerBtn">
+              <span class="bi bi-lightbulb"></span> Get Career Guidance
+            </button>
+            <button class="btn btn-outline-secondary" id="clearCareerBtn">
+              <span class="bi bi-arrow-clockwise"></span> Clear Form
+            </button>
+            <button class="btn btn-outline-success" id="saveSessionBtn">
+              <span class="bi bi-save"></span> Save Session
+            </button>
+            <button class="btn btn-outline-info" id="loadSessionBtn">
+              <span class="bi bi-folder-open"></span> Load Session
+            </button>
+          </div>
+          
+          <div id="careerLoading" style="display:none; text-align:center; margin-top:1.5rem;">
+            <div class="loader-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <div style="margin-top:0.5rem; color:#1976d2; font-weight:500;">Analyzing your profile and generating personalized career guidance...</div>
+          </div>
+          
+          <div class="alert alert-success mt-3" id="careerAdvice" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+</main>
+
+<div class="footer">
+  <div style="font-weight:700; font-size:1.1em; color:#222;">grader.ai</div>
+  <div style="font-size:1em; color:#444;">Alemger Baipeissov</div>
+  <div style="font-size:0.95em; color:#888;">&copy; 2025 &mdash; Powered by Google Cloud and OpenAI</div>
+</div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+// IELTS Grader logic
+const questionEl = document.getElementById('question');
+const recordBtn = document.getElementById('recordBtn');
+const stopBtn = document.getElementById('stopBtn');
+const newQBtn = document.getElementById('newQBtn');
+const audioPlayer = document.getElementById('audioPlayer');
+const resultEl = document.getElementById('result');
+const micAnimation = document.getElementById('micAnimation');
+const transcribeLoader = document.getElementById('transcribeLoader');
+
+let mediaRecorder, audioChunks = [], audioBlob;
+
+async function fetchQuestion() {
+  questionEl.textContent = 'Loading question...';
+  resultEl.style.display = 'none';
+  audioPlayer.style.display = 'none';
+  try {
+    const res = await fetch('/task');
+    const data = await res.json();
+    questionEl.textContent = data.task;
+  } catch {
+    questionEl.textContent = 'Failed to load question.';
+  }
+}
+
+newQBtn.onclick = fetchQuestion;
+
+recordBtn.onclick = async () => {
+  audioChunks = [];
+  resultEl.style.display = 'none';
+  audioPlayer.style.display = 'none';
+  recordBtn.disabled = true;
+  stopBtn.disabled = false;
+  micAnimation.style.display = 'inline-block'; // Show mic animation
+  if (!navigator.mediaDevices) {
+    alert('Audio recording not supported.');
+    return;
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+  mediaRecorder.onstop = () => {
+    audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+    audioPlayer.src = URL.createObjectURL(audioBlob);
+    audioPlayer.style.display = 'block';
+    micAnimation.style.display = 'none'; // Hide mic animation
+  };
+  mediaRecorder.start();
+};
+
+stopBtn.onclick = () => {
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  micAnimation.style.display = 'none'; // Hide mic animation
+  setTimeout(uploadAudio, 500); // Give time for blob to finalize
+};
+
+async function uploadAudio() {
+  if (!audioBlob) return;
+  resultEl.style.display = 'none';
+  transcribeLoader.style.display = 'block'; // Show loader
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'answer.wav');
+  try {
+    const res = await fetch('/assess', {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
+    const data = await res.json();
+    // Format assessment: separate each grade/explanation with paragraphs
+    let formatted = data.assessment
+      .replace(/\n\s*\n/g, '<br><br>') // double newlines to paragraphs
+      .replace(/\n/g, '<br>'); // single newlines to line breaks
+    resultEl.innerHTML = `<b>Transcript:</b><br>${data.transcript}<br><br><b>Assessment:</b><br>${formatted}`;
+    resultEl.className = 'alert alert-info mt-3';
+    resultEl.style.display = 'block';
+  } catch (error) {
+    console.error("Error during assessment:", error);
+    resultEl.textContent = 'Failed to assess your answer. Please try again.';
+    resultEl.className = 'alert alert-danger mt-3';
+    resultEl.style.display = 'block';
+  } finally {
+    transcribeLoader.style.display = 'none'; // Hide loader
+  }
+}
+
+// Initial load
+fetchQuestion();
+
+// Career Guidance logic
+const careerBtn = document.getElementById('careerBtn');
+const clearCareerBtn = document.getElementById('clearCareerBtn');
+const careerAdvice = document.getElementById('careerAdvice');
+const careerLoading = document.getElementById('careerLoading');
+const loadAssessmentBtn = document.getElementById('loadAssessmentBtn');
+const assessmentQuestions = document.getElementById('assessmentQuestions');
+const saveSessionBtn = document.getElementById('saveSessionBtn');
+const loadSessionBtn = document.getElementById('loadSessionBtn');
+
+// Get all the new form fields
+const academicBackground = document.getElementById('academicBackground');
+const interests = document.getElementById('interests');
+const skills = document.getElementById('skills');
+const goals = document.getElementById('goals');
+const constraints = document.getElementById('constraints');
+const additionalInfo = document.getElementById('additionalInfo');
+
+// Assessment questions functionality
+loadAssessmentBtn.onclick = async () => {
+  try {
+    const res = await fetch('/career-assessment-questions');
+    const data = await res.json();
+    
+    let questionsHTML = '';
+    data.questions.forEach((category, categoryIndex) => {
+      questionsHTML += `<div class="card mb-3 assessment-card">
+        <div class="card-header">
+          <h6 class="mb-0"><span class="bi bi-list-check"></span> ${category.category}</h6>
+        </div>
+        <div class="card-body">`;
+      
+      category.questions.forEach((question, questionIndex) => {
+        questionsHTML += `
+          <div class="mb-3">
+            <label class="form-label">${questionIndex + 1}. ${question}</label>
+            <textarea class="form-control assessment-answer" rows="2" 
+              data-category="${category.category}" 
+              data-question="${question}"
+              placeholder="Your answer..."></textarea>
+          </div>`;
+      });
+      
+      questionsHTML += `</div></div>`;
+    });
+    
+    assessmentQuestions.innerHTML = questionsHTML;
+    loadAssessmentBtn.style.display = 'none';
+  } catch (error) {
+    console.error("Error loading assessment questions:", error);
+    assessmentQuestions.innerHTML = '<div class="alert alert-warning">Failed to load assessment questions.</div>';
+  }
+};
+
+clearCareerBtn.onclick = () => {
+  academicBackground.value = '';
+  interests.value = '';
+  skills.value = '';
+  goals.value = '';
+  constraints.value = '';
+  additionalInfo.value = '';
+  careerAdvice.style.display = 'none';
+  
+  // Clear assessment answers
+  const assessmentAnswers = document.querySelectorAll('.assessment-answer');
+  assessmentAnswers.forEach(answer => answer.value = '');
+};
+
+careerBtn.onclick = async () => {
+  // Collect all form data
+  const formData = {
+    academicBackground: academicBackground.value.trim(),
+    interests: interests.value.trim(),
+    skills: skills.value.trim(),
+    goals: goals.value.trim(),
+    constraints: constraints.value.trim(),
+    additionalInfo: additionalInfo.value.trim()
+  };
+  
+  // Collect assessment answers
+  const assessmentAnswers = document.querySelectorAll('.assessment-answer');
+  let assessmentData = '';
+  if (assessmentAnswers.length > 0) {
+    assessmentData = '\n\nCAREER ASSESSMENT ANSWERS:\n';
+    assessmentAnswers.forEach(answer => {
+      if (answer.value.trim()) {
+        assessmentData += `${answer.dataset.category} - ${answer.dataset.question}: ${answer.value.trim()}\n`;
+      }
+    });
+  }
+  
+  // Check if at least some basic information is provided
+  const hasBasicInfo = formData.academicBackground || formData.interests || formData.skills || formData.goals || assessmentData;
+  
+  if (!hasBasicInfo) {
+    careerAdvice.style.display = 'block';
+    careerAdvice.className = 'alert alert-warning mt-3';
+    careerAdvice.innerText = 'Please provide at least some information about your academic background, interests, skills, goals, or complete the assessment questions to get personalized career guidance.';
+    return;
+  }
+  
+  // Combine all information into a comprehensive profile
+  const combinedProfile = `ACADEMIC BACKGROUND: ${formData.academicBackground || 'Not specified'}
+
+INTERESTS & HOBBIES: ${formData.interests || 'Not specified'}
+
+SKILLS & STRENGTHS: ${formData.skills || 'Not specified'}
+
+CAREER GOALS: ${formData.goals || 'Not specified'}
+
+CONSTRAINTS & PREFERENCES: ${formData.constraints || 'Not specified'}
+
+ADDITIONAL INFORMATION: ${formData.additionalInfo || 'Not specified'}${assessmentData}`;
+
+  careerAdvice.style.display = 'none';
+  careerLoading.style.display = 'block';
+  
+  try {
+    const res = await fetch('/career-guidance', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question: combinedProfile})
+    });
+
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
+
+    const data = await res.json();
+    careerAdvice.innerHTML = data.advice.replace(/\n\s*\n/g, '<br><br>').replace(/\n/g, '<br>');
+    careerAdvice.className = 'alert alert-success mt-3';
+    careerAdvice.style.display = 'block';
+  } catch (error) {
+    console.error("Error getting career advice:", error);
+    careerAdvice.innerText = 'Failed to get career guidance. Please try again.';
+    careerAdvice.className = 'alert alert-danger mt-3';
+    careerAdvice.style.display = 'block';
+  } finally {
+    careerLoading.style.display = 'none';
+  }
+};
+
+// Session management functionality
+saveSessionBtn.onclick = () => {
+  const sessionData = {
+    academicBackground: academicBackground.value,
+    interests: interests.value,
+    skills: skills.value,
+    goals: goals.value,
+    constraints: constraints.value,
+    additionalInfo: additionalInfo.value,
+    assessmentAnswers: {},
+    timestamp: new Date().toISOString()
+  };
+  
+  // Collect assessment answers
+  const assessmentAnswers = document.querySelectorAll('.assessment-answer');
+  assessmentAnswers.forEach(answer => {
+    if (answer.value.trim()) {
+      sessionData.assessmentAnswers[`${answer.dataset.category}-${answer.dataset.question}`] = answer.value;
+    }
+  });
+  
+  const sessionName = prompt('Enter a name for this session:');
+  if (sessionName) {
+    const sessions = JSON.parse(localStorage.getItem('careerSessions') || '{}');
+    sessions[sessionName] = sessionData;
+    localStorage.setItem('careerSessions', JSON.stringify(sessions));
+    alert('Session saved successfully!');
+  }
+};
+
+loadSessionBtn.onclick = () => {
+  const sessions = JSON.parse(localStorage.getItem('careerSessions') || '{}');
+  const sessionNames = Object.keys(sessions);
+  
+  if (sessionNames.length === 0) {
+    alert('No saved sessions found.');
+    return;
+  }
+  
+  const sessionName = prompt('Enter the name of the session to load:\n\nAvailable sessions:\n' + sessionNames.join('\n'));
+  if (sessionName && sessions[sessionName]) {
+    const sessionData = sessions[sessionName];
+    
+    // Load form data
+    academicBackground.value = sessionData.academicBackground || '';
+    interests.value = sessionData.interests || '';
+    skills.value = sessionData.skills || '';
+    goals.value = sessionData.goals || '';
+    constraints.value = sessionData.constraints || '';
+    additionalInfo.value = sessionData.additionalInfo || '';
+    
+    // Load assessment answers if they exist
+    if (sessionData.assessmentAnswers) {
+      const assessmentAnswers = document.querySelectorAll('.assessment-answer');
+      assessmentAnswers.forEach(answer => {
+        const key = `${answer.dataset.category}-${answer.dataset.question}`;
+        if (sessionData.assessmentAnswers[key]) {
+          answer.value = sessionData.assessmentAnswers[key];
+        }
+      });
+    }
+    
+    alert('Session loaded successfully!');
+  }
+};
+</script>
+</body>
+</html> 
