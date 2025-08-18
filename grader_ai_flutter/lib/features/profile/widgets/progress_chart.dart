@@ -66,7 +66,7 @@ class ProgressChart extends StatelessWidget {
           
           SizedBox(height: 24.h),
           
-          // Skills breakdown
+                    // Skills breakdown
           Text(
             'Skills Breakdown',
             style: TextStyle(
@@ -78,9 +78,9 @@ class ProgressChart extends StatelessWidget {
           
           SizedBox(height: 16.h),
           
-                        ...profile.stats.skillLevels.entries.map(
+          ...profile.stats.skillLevels.entries.map(
             (entry) => _buildSkillProgress(entry.key, entry.value),
-          ),
+          ).toList(),
         ],
       ),
     );

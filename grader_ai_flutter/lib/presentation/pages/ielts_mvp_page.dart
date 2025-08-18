@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/audio_recorder_service.dart';
 import '../../core/openai_service.dart';
+import '../../core/config/api_config.dart';
 import '../../features/ielts/domain/entities/ielts_result.dart';
 import '../../shared/themes/app_colors.dart';
 import '../../shared/themes/app_typography.dart';
@@ -23,14 +24,17 @@ class IeltsMvpPage extends StatefulWidget {
 
 class _IeltsMvpPageState extends State<IeltsMvpPage> {
   final _rec = AudioRecorderService();
-  static const _openAiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: 'sk-REPLACE_ME_FOR_MVP_ONLY');
-  late final _ai = OpenAIService(_openAiKey);
+  late final _ai = OpenAIService(ApiConfig.openAiApiKey);
 
   @override
   void initState() {
     super.initState();
     // Debug: Check if API key is loaded correctly
-    print('OpenAI API Key loaded: ${_openAiKey.substring(0, 8)}... (${_openAiKey.length} chars)');
+    if (ApiConfig.isOpenAiConfigured) {
+      print('OpenAI API Key loaded: ${ApiConfig.openAiApiKey.substring(0, 8)}... (${ApiConfig.openAiApiKey.length} chars)');
+    } else {
+      print('Warning: OpenAI API Key not configured properly');
+    }
   }
 
   IeltsStatus _status = IeltsStatus.idle;

@@ -130,8 +130,10 @@ class ProfileHeader extends StatelessWidget {
                       
                       SizedBox(height: 8.h),
                       
-                      // Target band and country
-                      Row(
+                                            // Target band and country
+                      Wrap(
+                        spacing: 8.w,
+                        runSpacing: 8.h,
                         children: [
                           Container(
                             padding: EdgeInsets.symmetric(
@@ -143,7 +145,7 @@ class ProfileHeader extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12.r),
                             ),
                             child: Text(
-                                                                'Target: Score ${profile.stats.averageScore.toStringAsFixed(1)}',
+                              'Target: Score ${profile.stats.averageScore.toStringAsFixed(1)}',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 12.sp,
@@ -152,27 +154,29 @@ class ProfileHeader extends StatelessWidget {
                             ),
                           ),
                           
-                          if (profile.bio != null) ...[
-                            SizedBox(width: 8.w),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8.w,
-                                vertical: 4.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12.r),
-                              ),
-                              child: Text(
-                                profile.bio!,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w500,
+                          if (profile.bio != null)
+                            Flexible(
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 8.w,
+                                  vertical: 4.h,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12.r),
+                                ),
+                                child: Text(
+                                  profile.bio!,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
                                 ),
                               ),
                             ),
-                          ],
                         ],
                       ),
                     ],

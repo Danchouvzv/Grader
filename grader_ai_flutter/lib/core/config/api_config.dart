@@ -2,7 +2,7 @@ class ApiConfig {
   // OpenAI Configuration
   static const String openAiApiKey = String.fromEnvironment(
     'OPENAI_API_KEY',
-    defaultValue: 'sk-your-openai-api-key-here', // Replace with real key
+    defaultValue: '', // Empty default for security
   );
   
   static const String openAiBaseUrl = 'https://api.openai.com/v1';
@@ -11,11 +11,17 @@ class ApiConfig {
   // Google Cloud Speech-to-Text Configuration  
   static const String googleCloudProjectId = String.fromEnvironment(
     'GOOGLE_CLOUD_PROJECT_ID',
-    defaultValue: 'your-project-id',
+    defaultValue: '',
   );
   
   static const String googleCloudRegion = 'us-central1';
   static const String speechRecognizer = 'projects/$googleCloudProjectId/locations/$googleCloudRegion/recognizers/ielts-recognizer';
+  
+  // Backend API Configuration
+  static const String backendApiUrl = String.fromEnvironment(
+    'BACKEND_API_URL',
+    defaultValue: 'http://localhost:8000',
+  );
   
   // Audio Configuration
   static const int sampleRate = 44100; // 44.1 kHz for iOS compatibility
@@ -39,4 +45,8 @@ class ApiConfig {
   static bool get isGoogleCloudConfigured =>
     googleCloudProjectId.isNotEmpty &&
     googleCloudProjectId != 'your-project-id';
+    
+  static bool get isBackendConfigured =>
+    backendApiUrl.isNotEmpty &&
+    backendApiUrl != 'http://localhost:8000';
 }

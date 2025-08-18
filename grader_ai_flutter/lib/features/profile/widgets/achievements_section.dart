@@ -75,7 +75,7 @@ class AchievementsSection extends StatelessWidget {
               ),
             ),
             SizedBox(height: 12.h),
-            ...unlockedAchievements.map((achievement) => _buildAchievementCard(achievement, true)),
+            ...unlockedAchievements.map((achievement) => _buildAchievementCard(achievement, true)).toList(),
           ],
           
           // In progress achievements

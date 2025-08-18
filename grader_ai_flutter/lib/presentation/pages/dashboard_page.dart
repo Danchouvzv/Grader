@@ -5,7 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../widgets/animated_background.dart';
 import '../../shared/widgets/creative_buttons.dart';
 import 'ielts_speaking_page.dart';
-import 'ielts_topics_page.dart';
+import 'ielts_mvp_page.dart';
 import 'profile_page.dart';
 import 'career_guidance_page.dart';
 
@@ -106,7 +106,7 @@ class _DashboardPageState extends State<DashboardPage>
                   HapticFeedback.mediumImpact();
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const IeltsTopicsPage()),
+                    MaterialPageRoute(builder: (_) => const IeltsMvpPage()),
                   );
                 },
                 child: Container(
@@ -568,7 +568,7 @@ class _DashboardPageState extends State<DashboardPage>
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const IeltsTopicsPage()),
+                  MaterialPageRoute(builder: (_) => const IeltsMvpPage()),
                 );
               },
             ),

@@ -1,5 +1,7 @@
+import '../config/api_config.dart';
+
 class ApiConstants {
-  static const String baseUrl = 'http://localhost:8000';
+  static String get baseUrl => ApiConfig.backendApiUrl;
   
   // IELTS endpoints
   static const String getTask = '/task';
