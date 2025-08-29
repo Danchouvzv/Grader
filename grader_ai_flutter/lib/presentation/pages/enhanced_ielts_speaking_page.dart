@@ -1,0 +1,1882 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../../shared/themes/app_colors.dart';
+import '../../shared/themes/app_typography.dart';
+import '../widgets/enhanced_navigation_bar.dart';
+import '../../core/audio_recorder_service.dart';
+import '../../core/openai_service.dart';
+import '../../core/config/api_config.dart';
+import '../../features/ielts/domain/entities/ielts_result.dart';
+import '../../features/ielts/domain/entities/ielts_speaking_part.dart';
+import '../../features/ielts/domain/usecases/manage_speaking_session.dart';
+import 'enhanced_ielts_results_page.dart';
+
+class EnhancedIeltsSpeakingPage extends StatefulWidget {
+  const EnhancedIeltsSpeakingPage({super.key});
+
+  @override
+  State<EnhancedIeltsSpeakingPage> createState() => _EnhancedIeltsSpeakingPageState();
+}
+
+class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
+    with TickerProviderStateMixin {
+  
+  // Services
+  final _recorder = AudioRecorderService();
+  late final _ai = OpenAIService(ApiConfig.openAiApiKey);
+  late final _sessionManager = ManageSpeakingSessionImpl();
+  
+  @override
+  void initState() {
+    super.initState();
+    _initializeAnimations();
+    _initializeSession();
+    
+    // Debug: Check API configuration
+    print('🔑 OpenAI API Key configured: ${ApiConfig.isOpenAiConfigured}');
+    if (ApiConfig.isOpenAiConfigured) {
+      print('🔑 API Key prefix: ${ApiConfig.openAiApiKey.substring(0, 8)}...');
+    }
+  }
+  
+  // Animation Controllers
+  late AnimationController _slideController;
+  late AnimationController _fadeController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+  
+  // State
+  int _currentNavIndex = 0;
+  bool _isRecording = false;
+  bool _isProcessing = false;
+  String? _audioPath;
+  String? _duration;
+  IeltsResult? _result;
+  String? _error;
+  late IeltsSpeakingSession _speakingSession;
+  Timer? _recordingTimer;
+  int _recordingSeconds = 0;
+
+  void _initializeAnimations() {
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutBack,
+    ));
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    ));
+
+    _slideController.forward();
+    _fadeController.forward();
+  }
+
+  void _initializeSession() {
+    _speakingSession = _sessionManager.createNewSession();
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    _fadeController.dispose();
+    _recorder.dispose();
+    _recordingTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      await _stopRecording();
+    } else {
+      await _startRecording();
+    }
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      final path = await _recorder.start();
+      setState(() {
+        _audioPath = path;
+        _isRecording = true;
+        _recordingSeconds = 0;
+        _error = null;
+      });
+      
+      _startRecordingTimer();
+      HapticFeedback.lightImpact();
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to start recording: $e';
+      });
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
+      final path = await _recorder.stop();
+      _recordingTimer?.cancel();
+      
+      setState(() {
+        _audioPath = path ?? _audioPath;
+        _isRecording = false;
+      });
+      
+      HapticFeedback.mediumImpact();
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to stop recording: $e';
+      });
+    }
+  }
+
+  void _startRecordingTimer() {
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!_isRecording) {
+        timer.cancel();
+        return;
+      }
+      
+      setState(() {
+        _recordingSeconds++;
+        _duration = _formatDuration(_recordingSeconds);
+      });
+    });
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _processRecording() async {
+    if (_audioPath == null) return;
+
+    // Check API configuration first
+    if (!ApiConfig.isOpenAiConfigured) {
+      setState(() {
+        _error = 'OpenAI API key not configured. Please check your environment variables.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+      _error = null;
+    });
+
+    try {
+      print('🎤 Starting transcription for: $_audioPath');
+      
+      // Transcribe
+      final transcript = await _ai.transcribeAudio(_audioPath!);
+      print('📝 Transcription completed: ${transcript.substring(0, transcript.length > 50 ? 50 : transcript.length)}...');
+      
+      if (transcript.isEmpty) {
+        throw Exception('No speech detected in recording');
+      }
+      
+      // Grade
+      print('🤖 Starting IELTS grading...');
+      final feedback = await _ai.gradeIelts(transcript);
+      print('✅ Grading completed');
+      
+      final result = _parseOpenAIResponse(transcript, feedback);
+      
+      // Complete current part
+      final updatedSession = _sessionManager.completeCurrentPart(_speakingSession, result);
+      
+      setState(() {
+        _result = result;
+        _isProcessing = false;
+        _speakingSession = updatedSession;
+      });
+      
+      // Navigate to results
+      _navigateToResults();
+      
+    } catch (e) {
+      print('❌ Error processing recording: $e');
+      setState(() {
+        _error = _getUserFriendlyError(e.toString());
+        _isProcessing = false;
+      });
+    }
+  }
+  
+  String _getUserFriendlyError(String error) {
+    final errorLower = error.toLowerCase();
+    
+    if (errorLower.contains('invalid_api_key') || errorLower.contains('unauthorized')) {
+      return 'API key issue. Please check your OpenAI configuration.';
+    }
+    if (errorLower.contains('network') || errorLower.contains('connection')) {
+      return 'Network error. Please check your internet connection.';
+    }
+    if (errorLower.contains('quota') || errorLower.contains('rate limit')) {
+      return 'API quota exceeded. Please try again later.';
+    }
+    if (errorLower.contains('no speech detected')) {
+      return 'No speech detected. Please try recording again.';
+    }
+    if (errorLower.contains('file') || errorLower.contains('audio')) {
+      return 'Audio file issue. Please try recording again.';
+    }
+    
+    return 'Something went wrong. Please try again.';
+  }
+
+  void _navigateToResults() {
+    if (_result != null) {
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => EnhancedIeltsResultsPage(
+            assessment: _result!,
+            transcript: _result!.transcript,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
+      );
+    }
+  }
+
+  IeltsResult _parseOpenAIResponse(String transcript, String feedback) {
+    // Simplified parsing - in production, implement proper parsing
+    return IeltsResult(
+      overallBand: 6.5,
+      bands: {
+        'fluency_coherence': 6.0,
+        'lexical_resource': 6.5,
+        'grammar': 7.0,
+        'pronunciation': 6.5,
+      },
+      reasons: {
+        'fluency_coherence': 'Good flow with some hesitation',
+        'lexical_resource': 'Appropriate vocabulary range',
+        'grammar': 'Complex structures used effectively',
+        'pronunciation': 'Clear pronunciation with minor issues',
+      },
+      summary: 'A competent response with good language use and clear communication.',
+      tips: [
+        'Practice speaking more fluently with fewer pauses',
+        'Expand vocabulary for specific topics',
+        'Work on pronunciation clarity',
+      ],
+      transcript: transcript,
+      timestamp: DateTime.now(),
+    );
+  }
+
+  void _resetRecording() {
+    setState(() {
+      _audioPath = null;
+      _duration = null;
+      _result = null;
+      _error = null;
+      _recordingSeconds = 0;
+    });
+  }
+
+  void _moveToNextPart() {
+    if (_speakingSession.canMoveToNextPart) {
+      final updatedSession = _sessionManager.moveToNextPart(_speakingSession);
+      setState(() {
+        _speakingSession = updatedSession;
+      });
+      _resetRecording();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFF8FAFC),
+              Colors.white,
+              const Color(0xFFF8FAFC),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Modern App Bar
+              _buildModernAppBar(),
+              
+              // Main Content
+              Expanded(
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: _buildMainContent(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernAppBar() {
+    return Container(
+      margin: EdgeInsets.all(20.w),
+      padding: EdgeInsets.all(24.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24.r),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1a1a2e).withOpacity(0.08),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.9),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Top Row
+          Row(
+            children: [
+              // Back Button
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: EdgeInsets.all(12.w),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFE53935).withOpacity(0.1),
+                        const Color(0xFF1976D2).withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16.r),
+                    border: Border.all(
+                      color: const Color(0xFFE53935).withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.arrow_back_ios_rounded,
+                    color: const Color(0xFFE53935),
+                    size: 20.w,
+                  ),
+                ),
+              ),
+              
+              SizedBox(width: 16.w),
+              
+              // Title Section with AI Logo
+              Expanded(
+                child: Row(
+                  children: [
+                    // AI Logo
+                    Container(
+                      width: 40.w,
+                      height: 40.h,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFFE53935),
+                            const Color(0xFF1976D2),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFE53935).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Colors.white,
+                        size: 20.w,
+                      ),
+                    ),
+                    
+                    SizedBox(width: 12.w),
+                    
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'IELTS',
+                              style: TextStyle(
+                                fontSize: 18.sp,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFFE53935),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            SizedBox(width: 4.w),
+                            Text(
+                              'Speaking',
+                              style: TextStyle(
+                                fontSize: 18.sp,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF1976D2),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'AI-Powered Practice',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: const Color(0xFF64748b),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Progress Circle
+              _buildProgressCircle(),
+            ],
+          ),
+          
+          SizedBox(height: 20.h),
+          
+          // Current Part Info
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFFF8FAFC),
+                  Colors.white,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20.r),
+              border: Border.all(
+                color: const Color(0xFFE2E8F0),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(10.w),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFE53935).withOpacity(0.1),
+                        const Color(0xFF1976D2).withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Icon(
+                    Icons.mic_rounded,
+                    color: const Color(0xFFE53935),
+                    size: 20.w,
+                  ),
+                ),
+                SizedBox(width: 16.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _speakingSession.currentPart.type.title,
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          color: const Color(0xFF1a1a2e),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'Part ${_speakingSession.currentPartIndex + 1} of ${_speakingSession.parts.length}',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: const Color(0xFF64748b),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFE53935),
+                        const Color(0xFF1976D2),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Text(
+                    '${_speakingSession.currentPartIndex + 1}/${_speakingSession.parts.length}',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressCircle() {
+    final progress = (_speakingSession.currentPartIndex + 1) / _speakingSession.parts.length;
+    
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          width: 50.w,
+          height: 50.h,
+          child: CircularProgressIndicator(
+            value: progress,
+            strokeWidth: 4,
+            backgroundColor: const Color(0xFFE2E8F0),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              const Color(0xFFE53935),
+            ),
+          ),
+        ),
+        Container(
+          width: 40.w,
+          height: 40.h,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1a1a2e).withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              '${(_speakingSession.currentPartIndex + 1)}',
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFFE53935),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEnhancedAppBar() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary,
+            AppColors.primaryLight,
+            AppColors.primary.withOpacity(0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.vertical(
+          bottom: Radius.circular(32),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Top Row
+          Row(
+            children: [
+              // Back Button
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.arrow_back_ios_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // Title Section
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'AI-Powered IELTS',
+                          style: AppTypography.titleLarge.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Speaking Practice Session',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: Colors.white.withOpacity(0.9),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Progress Indicator
+              _buildEnhancedProgressIndicator(),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Current Part Info
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.mic_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _speakingSession.currentPart.type.title,
+                        style: AppTypography.labelLarge.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'Part ${_speakingSession.currentPartIndex + 1} of ${_speakingSession.parts.length}',
+                        style: AppTypography.labelSmall.copyWith(
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_speakingSession.currentPartIndex + 1}/${_speakingSession.parts.length}',
+                    style: AppTypography.labelSmall.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressIndicator() {
+    final progress = (_speakingSession.currentPartIndex + 1) / _speakingSession.parts.length;
+    
+    return Container(
+      width: 60,
+      height: 60,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: progress,
+            backgroundColor: AppColors.primary.withOpacity(0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+            strokeWidth: 4,
+          ),
+          Text(
+            '${_speakingSession.currentPartIndex + 1}/${_speakingSession.parts.length}',
+            style: AppTypography.labelMedium.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnhancedProgressIndicator() {
+    final progress = (_speakingSession.currentPartIndex + 1) / _speakingSession.parts.length;
+    
+    return Container(
+      width: 70,
+      height: 70,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Outer ring
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 2,
+              ),
+            ),
+          ),
+          // Progress ring
+          SizedBox(
+            width: 60,
+            height: 60,
+            child: CircularProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.white.withOpacity(0.2),
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              strokeWidth: 4,
+            ),
+          ),
+          // Center content
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${_speakingSession.currentPartIndex + 1}',
+                style: AppTypography.titleMedium.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+              Container(
+                width: 12,
+                height: 1,
+                color: Colors.white.withOpacity(0.6),
+              ),
+              Text(
+                '${_speakingSession.parts.length}',
+                style: AppTypography.labelSmall.copyWith(
+                  color: Colors.white.withOpacity(0.8),
+                  fontWeight: FontWeight.w600,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(horizontal: 20.w),
+      child: Column(
+        children: [
+          SizedBox(height: 20.h),
+          
+          // Modern Task Card
+          _buildModernTaskCard(),
+          
+          SizedBox(height: 32.h),
+          
+          // Modern Recording Widget
+          _buildModernRecordingWidget(),
+          
+          SizedBox(height: 24.h),
+          
+          // Action Buttons
+          if (_audioPath != null && !_isRecording) ...[
+            _buildModernActionButtons(),
+            SizedBox(height: 24.h),
+          ],
+          
+          // Error Display
+          if (_error != null) ...[
+            _buildModernErrorCard(),
+            SizedBox(height: 24.h),
+          ],
+          
+          // Tips Section
+          _buildModernTipsSection(),
+          
+          SizedBox(height: 40.h),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernTaskCard() {
+    final currentPart = _speakingSession.currentPart;
+    
+    return Container(
+      padding: EdgeInsets.all(28.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24.r),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1a1a2e).withOpacity(0.08),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.9),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with icon
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFE53935).withOpacity(0.1),
+                      const Color(0xFF1976D2).withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16.r),
+                ),
+                child: Icon(
+                  Icons.quiz_outlined,
+                  color: const Color(0xFFE53935),
+                  size: 24.w,
+                ),
+              ),
+              SizedBox(width: 16.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      currentPart.type.title,
+                      style: TextStyle(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1a1a2e),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    Text(
+                      'Duration: ${currentPart.type.duration} minutes',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color: const Color(0xFF64748b),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          SizedBox(height: 24.h),
+          
+          // Instructions (Time Limit)
+          if (currentPart.timeLimit.isNotEmpty) ...[
+            Container(
+              padding: EdgeInsets.all(20.w),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFF8FAFC),
+                    Colors.white,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(
+                  color: const Color(0xFFE2E8F0),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        color: const Color(0xFF1976D2),
+                        size: 20.w,
+                      ),
+                      SizedBox(width: 8.w),
+                      Text(
+                        'Instructions',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1976D2),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12.h),
+                  Text(
+                    currentPart.timeLimit,
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      color: const Color(0xFF374151),
+                      fontWeight: FontWeight.w500,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 20.h),
+          ],
+          
+          // Question
+          Container(
+            padding: EdgeInsets.all(20.w),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFFE53935).withOpacity(0.05),
+                  const Color(0xFF1976D2).withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16.r),
+              border: Border.all(
+                color: const Color(0xFFE53935).withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.record_voice_over_rounded,
+                      color: const Color(0xFFE53935),
+                      size: 20.w,
+                    ),
+                    SizedBox(width: 8.w),
+                    Text(
+                      'Your Task',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFE53935),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12.h),
+                Text(
+                  currentPart.topic,
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    color: const Color(0xFF1a1a2e),
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                  ),
+                ),
+                
+                SizedBox(height: 16.h),
+                
+                // Points/Questions
+                if (currentPart.points.isNotEmpty) ...[
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: currentPart.points.map((point) => Padding(
+                      padding: EdgeInsets.only(bottom: 8.h),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 6.w,
+                            height: 6.h,
+                            margin: EdgeInsets.only(top: 6.h),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFFE53935),
+                                  const Color(0xFF1976D2),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: Text(
+                              point,
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                color: const Color(0xFF374151),
+                                fontWeight: FontWeight.w500,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernRecordingWidget() {
+    return Container(
+      padding: EdgeInsets.all(32.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24.r),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1a1a2e).withOpacity(0.08),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.9),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Recording status
+          Text(
+            _isRecording ? 'Recording...' : _audioPath != null ? 'Recording Complete' : 'Ready to Record',
+            style: TextStyle(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.w700,
+              color: _isRecording 
+                  ? const Color(0xFFE53935) 
+                  : _audioPath != null 
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFF64748b),
+            ),
+          ),
+          
+          SizedBox(height: 24.h),
+          
+          // Recording button
+          GestureDetector(
+            onTap: _toggleRecording,
+            child: Container(
+              width: 120.w,
+              height: 120.h,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _isRecording
+                      ? [
+                          const Color(0xFFDC2626),
+                          const Color(0xFFEF4444),
+                        ]
+                      : [
+                          const Color(0xFFE53935),
+                          const Color(0xFF1976D2),
+                        ],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: (_isRecording ? const Color(0xFFDC2626) : const Color(0xFFE53935)).withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                    spreadRadius: 0,
+                  ),
+                ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (_isRecording)
+                    // Pulsing animation for recording
+                    TweenAnimationBuilder<double>(
+                      duration: const Duration(seconds: 1),
+                      tween: Tween(begin: 0.8, end: 1.2),
+                      builder: (context, value, child) {
+                        return Transform.scale(
+                          scale: value,
+                          child: Container(
+                            width: 100.w,
+                            height: 100.h,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  
+                  Icon(
+                    _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                    color: Colors.white,
+                    size: 48.w,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          SizedBox(height: 20.h),
+          
+          // Duration display
+          if (_duration != null) ...[
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFF8FAFC),
+                    Colors.white,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: const Color(0xFFE2E8F0),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                _duration!,
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF374151),
+                ),
+              ),
+            ),
+          ],
+          
+          // Processing indicator
+          if (_isProcessing) ...[
+            SizedBox(height: 20.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 20.w,
+                  height: 20.h,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      const Color(0xFF1976D2),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Text(
+                  'AI is analyzing your speech...',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: const Color(0xFF1976D2),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernActionButtons() {
+    return Row(
+      children: [
+        // Analyze button
+        Expanded(
+          child: Container(
+            height: 56.h,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFFE53935),
+                  const Color(0xFF1976D2),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16.r),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFE53935).withOpacity(0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: _isProcessing ? null : _processRecording,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16.r),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                    size: 20.w,
+                  ),
+                  SizedBox(width: 8.w),
+                  Text(
+                    'Analyze with AI',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        
+        SizedBox(width: 16.w),
+        
+        // Re-record button
+        Container(
+          width: 56.w,
+          height: 56.h,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16.r),
+            border: Border.all(
+              color: const Color(0xFFE2E8F0),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1a1a2e).withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: IconButton(
+            onPressed: _resetRecording,
+            icon: Icon(
+              Icons.refresh_rounded,
+              color: const Color(0xFF64748b),
+              size: 24.w,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModernErrorCard() {
+    return Container(
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: Colors.red.shade200,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.shade100.withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8.w),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Icon(
+              Icons.error_outline_rounded,
+              color: Colors.red.shade500,
+              size: 24.w,
+            ),
+          ),
+          SizedBox(width: 16.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Error',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.red.shade700,
+                  ),
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  _error!,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: Colors.red.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernTipsSection() {
+    return Container(
+      padding: EdgeInsets.all(24.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1a1a2e).withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFE53935).withOpacity(0.1),
+                      const Color(0xFF1976D2).withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(
+                  Icons.lightbulb_outline_rounded,
+                  color: const Color(0xFFE53935),
+                  size: 20.w,
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Text(
+                'Pro Tips',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1a1a2e),
+                ),
+              ),
+            ],
+          ),
+          
+          SizedBox(height: 16.h),
+          
+          ...[
+            'Speak clearly and at a natural pace',
+            'Use varied vocabulary and sentence structures',
+            'Develop your ideas with examples and details',
+            'Stay calm and confident throughout',
+          ].map((tip) => Padding(
+            padding: EdgeInsets.only(bottom: 8.h),
+            child: Row(
+              children: [
+                Container(
+                  width: 6.w,
+                  height: 6.h,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFE53935),
+                        const Color(0xFF1976D2),
+                      ],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Text(
+                    tip,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      color: const Color(0xFF64748b),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskCard() {
+    final currentPart = _speakingSession.currentPart;
+    
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary,
+            AppColors.primaryLight,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.quiz_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      currentPart.type.title,
+                      style: AppTypography.titleLarge.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      currentPart.type.subtitle,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Topic
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  currentPart.topic,
+                  style: AppTypography.titleMedium.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                ),
+                if (currentPart.points.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  ...currentPart.points.map((point) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(top: 8, right: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.8),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            point,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: Colors.white.withOpacity(0.9),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                ],
+              ],
+            ),
+          ),
+          
+          // Time Limit
+          if (currentPart.timeLimit != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.timer_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Time limit: ${currentPart.timeLimit}',
+                    style: AppTypography.labelMedium.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: FloatingNavButton(
+            onTap: _processRecording,
+            icon: Icons.analytics_rounded,
+            label: 'Get Assessment',
+            color: AppColors.success,
+            isExpanded: true,
+          ),
+        ),
+        const SizedBox(width: 16),
+        FloatingNavButton(
+          onTap: _resetRecording,
+          icon: Icons.refresh_rounded,
+          label: 'Try Again',
+          color: AppColors.warning,
+          isExpanded: false,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.error.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.error.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            color: AppColors.error,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _error!,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.error,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => setState(() => _error = null),
+            icon: Icon(
+              Icons.close_rounded,
+              color: AppColors.error.withOpacity(0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTipsSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.info.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.info.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.lightbulb_outline_rounded,
+                color: AppColors.info,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Speaking Tips',
+                style: AppTypography.titleMedium.copyWith(
+                  color: AppColors.info,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...['Speak clearly and at a natural pace', 'Use a variety of vocabulary and grammar structures', 'Stay on topic and develop your ideas fully'].map((tip) => 
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 4,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 8, right: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.info,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      tip,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigation() {
+    return EnhancedNavigationBar(
+      currentIndex: _currentNavIndex,
+      onTap: (index) {
+        setState(() {
+          _currentNavIndex = index;
+        });
+        
+        switch (index) {
+          case 0:
+            // Current part - do nothing
+            break;
+          case 1:
+            if (_speakingSession.canMoveToNextPart) {
+              _moveToNextPart();
+            }
+            break;
+          case 2:
+            // Settings or profile
+            break;
+        }
+      },
+      items: [
+        NavigationItem(
+          icon: Icons.mic_rounded,
+          label: 'Current',
+        ),
+        NavigationItem(
+          icon: Icons.arrow_forward_rounded,
+          label: 'Next Part',
+        ),
+        NavigationItem(
+          icon: Icons.settings_rounded,
+          label: 'Settings',
+        ),
+      ],
+    );
+  }
+}

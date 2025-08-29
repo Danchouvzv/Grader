@@ -544,7 +544,6 @@ class _CareerGuidancePageState extends State<CareerGuidancePage>
     );
   }
 }
-
 enum CareerTestStatus {
   notStarted,
   inProgress,
@@ -673,3 +672,4 @@ class CareerRecommendation {
     );
   }
 }
+

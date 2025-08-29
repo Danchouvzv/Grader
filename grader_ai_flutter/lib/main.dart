@@ -6,6 +6,7 @@ import 'core/di/injection.dart';
 import 'features/career/presentation/bloc/career_bloc.dart';
 import 'features/ielts/presentation/bloc/ielts_bloc.dart';
 import 'presentation/pages/welcome_page.dart';
+import 'presentation/pages/main_page.dart';
 import 'shared/themes/app_theme.dart';
 
 void main() async {
@@ -42,7 +43,7 @@ class GraderAIApp extends StatelessWidget {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: ThemeMode.system,
-            home: const WelcomePage(),
+            home: const WelcomePage(), // Начинаем с welcome, но с быстрым доступом к новому UI
           ),
         );
       },

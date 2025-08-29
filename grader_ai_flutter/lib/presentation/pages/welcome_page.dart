@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -5,6 +6,7 @@ import '../widgets/animated_background.dart';
 import '../widgets/gradient_button.dart';
 import 'sign_up_page.dart';
 import 'sign_in_page.dart';
+import 'main_page.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
@@ -99,22 +101,21 @@ class _WelcomePageState extends State<WelcomePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AnimatedBackground(
+            body: AnimatedBackground(
         child: SafeArea(
           child: SingleChildScrollView(
-                    child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.w),
-              child: Column(
-                children: [
-                  SizedBox(height: 60.h),
-                  _buildHeader(),
-                  SizedBox(height: 80.h),
-                  _buildFeatures(),
-                  SizedBox(height: 60.h),
-                  _buildCallToAction(),
-                  SizedBox(height: 40.h),
-                ],
-              ),
+            padding: EdgeInsets.symmetric(horizontal: 16.w),
+            child: Column(
+              children: [
+                SizedBox(height: 60.h),
+                _buildHeader(),
+                SizedBox(height: 80.h),
+                _buildFeatures(),
+                SizedBox(height: 60.h),
+                _buildCallToAction(),
+                SizedBox(height: 40.h),
+                SizedBox(height: 20.h), // Bottom padding for safe area
+              ],
             ),
           ),
         ),
@@ -127,198 +128,295 @@ class _WelcomePageState extends State<WelcomePage>
       opacity: _fadeAnimation,
       child: Column(
         children: [
-          // Floating decorative elements
+          SizedBox(height: 40.h),
+          
+          // Creative AI-powered logo
           Stack(
             alignment: Alignment.center,
             children: [
-              // Rotating outer ring
-              AnimatedBuilder(
-                animation: _rotateAnimation,
-                builder: (context, child) {
-                  return Transform.rotate(
-                    angle: _rotateAnimation.value * 2 * 3.14159,
+              // Outer pulsing ring
+              TweenAnimationBuilder<double>(
+                duration: const Duration(seconds: 2),
+                tween: Tween(begin: 0.0, end: 1.0),
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: 1.0 + (value * 0.1),
                     child: Container(
-                      width: 160.w,
-                      height: 160.w,
+                      width: 140.w,
+                      height: 140.h,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFF1976D2).withOpacity(0.2),
+                          color: const Color(0xFFE53935).withOpacity(0.3 * (1.0 - value)),
                           width: 2,
                         ),
                       ),
-                      child: Stack(
-                        children: [
-                          // Floating dots
-                          Positioned(
-                            top: 10.h,
-                            left: 75.w,
-                            child: Container(
-                              width: 8.w,
-                              height: 8.w,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE53935),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 10.h,
-                            right: 75.w,
-                            child: Container(
-                              width: 6.w,
-                              height: 6.w,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1976D2),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: 10.w,
-                            top: 75.h,
-                            child: Container(
-                              width: 4.w,
-                              height: 4.w,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4CAF50),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   );
                 },
               ),
-              // Pulsing logo
-              AnimatedBuilder(
-                animation: _pulseAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _pulseAnimation.value,
-                    child: Container(
-                      width: 120.w,
-                      height: 120.h,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF667eea),
-                            Color(0xFF764ba2),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF667eea).withOpacity(0.4),
-                            blurRadius: 25,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 80.w,
-                          height: 80.h,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.auto_awesome,
-                            size: 40.sp,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          SizedBox(height: 32.h),
-          // App Name with gradient
-          ShaderMask(
-            shaderCallback: (bounds) => const LinearGradient(
-              colors: [
-                Color(0xFFE53935), // Красный
-                Color(0xFFFF5722), // Оранжево-красный 
-                Color(0xFF1976D2), // Синий
-              ],
-              stops: [0.0, 0.5, 1.0],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ).createShader(bounds),
-            child: Text(
-              'grader.ai',
-              style: TextStyle(
-                fontSize: 42.sp,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: -1,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          SizedBox(height: 12.h),
-          // Animated tagline
-          AnimatedBuilder(
-            animation: _fadeAnimation,
-            builder: (context, child) {
-              return Container(
-                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+              
+              // Main logo container
+              Container(
+                width: 120.w,
+                height: 120.h,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF667eea).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(25.r),
-                  border: Border.all(
-                    color: const Color(0xFF667eea).withOpacity(0.2),
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFE53935),
+                      const Color(0xFFD32F2F),
+                      const Color(0xFF1976D2),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.rocket_launch,
-                      size: 16.sp,
-                      color: const Color(0xFF667eea),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFE53935).withOpacity(0.4),
+                      blurRadius: 25,
+                      offset: const Offset(0, 10),
+                      spreadRadius: 0,
                     ),
-                    SizedBox(width: 8.w),
-                    Text(
-                      'Master Your Speaking Skills with AI',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: const Color(0xFF667eea),
-                        fontWeight: FontWeight.w600,
-                      ),
+                    BoxShadow(
+                      color: const Color(0xFF1976D2).withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 5),
+                      spreadRadius: 0,
+                    ),
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.9),
+                      blurRadius: 8,
+                      offset: const Offset(0, -3),
+                      spreadRadius: 0,
                     ),
                   ],
                 ),
-              );
-            },
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // AI brain pattern background
+                    Positioned.fill(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                        ),
+                        child: CustomPaint(
+                          painter: AIBrainPainter(),
+                        ),
+                      ),
+                    ),
+                    
+                    // Microphone icon with AI elements
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // AI spark
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 16.w,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                        SizedBox(height: 4.h),
+                        // Main microphone
+                        Icon(
+                          Icons.mic_rounded,
+                          size: 32.w,
+                          color: Colors.white,
+                        ),
+                        SizedBox(height: 4.h),
+                        // Sound waves
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 3.w,
+                              height: 8.h,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(1.5.w),
+                              ),
+                            ),
+                            SizedBox(width: 2.w),
+                            Container(
+                              width: 3.w,
+                              height: 12.h,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(1.5.w),
+                              ),
+                            ),
+                            SizedBox(width: 2.w),
+                            Container(
+                              width: 3.w,
+                              height: 8.h,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(1.5.w),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Floating AI particles
+              Positioned(
+                top: 20.h,
+                right: 20.w,
+                child: TweenAnimationBuilder<double>(
+                  duration: const Duration(seconds: 3),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  builder: (context, value, child) {
+                    return Transform.translate(
+                      offset: Offset(
+                        10 * math.sin(value * 2 * math.pi),
+                        5 * math.cos(value * 2 * math.pi),
+                      ),
+                      child: Container(
+                        width: 8.w,
+                        height: 8.h,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.8),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFE53935).withOpacity(0.3),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              Positioned(
+                bottom: 15.h,
+                left: 15.w,
+                child: TweenAnimationBuilder<double>(
+                  duration: const Duration(seconds: 4),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  builder: (context, value, child) {
+                    return Transform.translate(
+                      offset: Offset(
+                        -8 * math.cos(value * 2 * math.pi),
+                        -6 * math.sin(value * 2 * math.pi),
+                      ),
+                      child: Container(
+                        width: 6.w,
+                        height: 6.h,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.6),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF1976D2).withOpacity(0.3),
+                              blurRadius: 3,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 20.h),
-          // Statistics row
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Expanded(
-                    child: Center(child: _buildStatItem('10K+', 'Students')),
+          
+          SizedBox(height: 32.h),
+          
+          // App name with brand colors
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: 'grader',
+                  style: TextStyle(
+                    fontSize: 44.sp,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFE53935), // Красный
+                    letterSpacing: -1.5,
+                    height: 1.1,
                   ),
-                  Expanded(
-                    child: Center(child: _buildStatItem('95%', 'Success Rate')),
+                ),
+                TextSpan(
+                  text: '.ai',
+                  style: TextStyle(
+                    fontSize: 44.sp,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1976D2), // Синий
+                    letterSpacing: -1.5,
+                    height: 1.1,
                   ),
-                  Expanded(
-                    child: Center(child: _buildStatItem('4.9★', 'Rating')),
-                  ),
-                ],
-              );
-            },
+                ),
+              ],
+            ),
+          ),
+          
+          SizedBox(height: 12.h),
+          
+          // Professional tagline
+          Text(
+            'AI-Powered Language Assessment',
+            style: TextStyle(
+              fontSize: 18.sp,
+              color: const Color(0xFF64748b),
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.3,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          
+          SizedBox(height: 40.h),
+          
+          // Clean statistics
+          Container(
+            margin: EdgeInsets.symmetric(horizontal: 20.w),
+            padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20.r),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF1a1a2e).withOpacity(0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                  spreadRadius: 0,
+                ),
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.8),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildCleanStatItem('50K+', 'Students'),
+                Container(
+                  width: 1,
+                  height: 32.h,
+                  color: const Color(0xFFe2e8f0),
+                ),
+                _buildCleanStatItem('98%', 'Success Rate'),
+                Container(
+                  width: 1,
+                  height: 32.h,
+                  color: const Color(0xFFe2e8f0),
+                ),
+                _buildCleanStatItem('4.9★', 'Rating'),
+              ],
+            ),
           ),
         ],
       ),
@@ -330,94 +428,57 @@ class _WelcomePageState extends State<WelcomePage>
       position: _slideAnimation,
       child: FadeTransition(
         opacity: _fadeAnimation,
-        child: Column(
-          children: [
-            // Section title with decorative elements
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 2.h,
-                        margin: EdgeInsets.only(right: 16.w),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.transparent, Color(0xFF667eea)],
-                          ),
-                          borderRadius: BorderRadius.circular(1.r),
-                        ),
-                      ),
-                    ),
-                    Text(
-                      'Why Choose Us',
-                      style: TextStyle(
-                        fontSize: 28.sp,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF2D3748),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    Expanded(
-                      child: Container(
-                        height: 2.h,
-                        margin: EdgeInsets.only(left: 16.w),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF667eea), Colors.transparent],
-                          ),
-                          borderRadius: BorderRadius.circular(1.r),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Powered by cutting-edge AI technology',
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: Colors.grey[600],
-                fontStyle: FontStyle.italic,
+        child: Container(
+          margin: EdgeInsets.symmetric(horizontal: 20.w),
+          child: Column(
+            children: [
+              // Clean section title
+              Text(
+                'Why Professionals Choose Grader.AI',
+                style: TextStyle(
+                  fontSize: 26.sp,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1a1a2e),
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 40.h),
-            
-            // Enhanced feature cards
-            _buildEnhancedFeatureCard(
-              icon: Icons.record_voice_over,
-              title: 'AI Speaking Coach',
-              description: 'Real-time IELTS assessment with personalized feedback',
-              benefits: ['Band score prediction', 'Pronunciation analysis', 'Fluency tracking'],
-              gradient: const LinearGradient(
-                colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+              SizedBox(height: 8.h),
+              Text(
+                'Advanced AI technology meets professional language assessment',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  color: const Color(0xFF64748b),
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.2,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            SizedBox(height: 24.h),
-            _buildEnhancedFeatureCard(
-              icon: Icons.trending_up,
-              title: 'Smart Progress Tracking',
-              description: 'Detailed analytics to monitor your improvement',
-              benefits: ['Performance metrics', 'Progress visualization', 'Achievement system'],
-              gradient: const LinearGradient(
-                colors: [Color(0xFF48BB78), Color(0xFF38A169)],
+              SizedBox(height: 40.h),
+              
+              // Professional feature cards with brand colors
+              _buildProfessionalFeatureCard(
+                icon: Icons.mic_none_rounded,
+                title: 'AI-Powered Assessment',
+                description: 'Get instant, accurate IELTS Speaking scores with detailed feedback from our advanced AI system.',
+                color: const Color(0xFFE53935), // Красный
               ),
-            ),
-            SizedBox(height: 24.h),
-            _buildEnhancedFeatureCard(
-              icon: Icons.psychology,
-              title: 'Personalized Learning',
-              description: 'Adaptive study plans tailored to your needs',
-              benefits: ['Custom study plans', 'Weakness identification', 'Targeted practice'],
-              gradient: const LinearGradient(
-                colors: [Color(0xFFED8936), Color(0xFFDD6B20)],
+              SizedBox(height: 20.h),
+              _buildProfessionalFeatureCard(
+                icon: Icons.analytics_outlined,
+                title: 'Detailed Analytics',
+                description: 'Track your progress with comprehensive performance metrics and personalized improvement insights.',
+                color: const Color(0xFF1976D2), // Синий
               ),
-            ),
-          ],
+              SizedBox(height: 20.h),
+              _buildProfessionalFeatureCard(
+                icon: Icons.school_outlined,
+                title: 'Expert-Level Training',
+                description: 'Practice with real IELTS questions and receive feedback comparable to certified examiners.',
+                color: const Color(0xFFE53935), // Красный
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -492,57 +553,148 @@ class _WelcomePageState extends State<WelcomePage>
       position: _slideAnimation,
       child: FadeTransition(
         opacity: _fadeAnimation,
-        child: Column(
-          children: [
-            // Get Started Button
-            GradientButton(
-              text: 'Get Started Free',
-              icon: Icons.rocket_launch,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SignUpPage(),
+        child: Container(
+          margin: EdgeInsets.symmetric(horizontal: 20.w),
+          child: Column(
+            children: [
+              // Professional CTA section
+              Container(
+                padding: EdgeInsets.all(32.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFE53935), // Красный
+                      const Color(0xFFD32F2F), // Темно-красный
+                      const Color(0xFF1976D2), // Синий
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                );
-              },
-            ),
-            SizedBox(height: 16.h),
-            // Sign In Button
-            GradientButton(
-              text: 'Sign In',
-              icon: Icons.login,
-              isOutlined: true,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SignInPage(),
-                  ),
-                );
-              },
-            ),
-            SizedBox(height: 32.h),
-            // Stats Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildStatItem('10K+', 'Students'),
-                Container(
-                  width: 1,
-                  height: 40.h,
-                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(24.r),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFE53935).withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                      spreadRadius: 0,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFF1976D2).withOpacity(0.2),
+                      blurRadius: 15,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 0,
+                    ),
+                  ],
                 ),
-                _buildStatItem('95%', 'Success Rate'),
-                Container(
-                  width: 1,
-                  height: 40.h,
-                  color: Colors.grey[300],
+                child: Column(
+                  children: [
+                    Text(
+                      'Ready to Master IELTS Speaking?',
+                      style: TextStyle(
+                        fontSize: 22.sp,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      'Join thousands of successful candidates',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        color: Colors.white.withOpacity(0.8),
+                        fontWeight: FontWeight.w400,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 24.h),
+                    
+                    // Primary CTA Button
+                    Container(
+                      width: double.infinity,
+                      height: 56.h,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SignUpPage(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF1a1a2e),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                          ),
+                        ),
+                        child: Text(
+                          'Start Free Assessment',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    SizedBox(height: 16.h),
+                    
+                    // Secondary CTA Button
+                    Container(
+                      width: double.infinity,
+                      height: 56.h,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SignInPage(),
+                            ),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                          ),
+                        ),
+                        child: Text(
+                          'Sign In',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                _buildStatItem('24/7', 'Support'),
-              ],
-            ),
-          ],
+              ),
+              
+              SizedBox(height: 24.h),
+              
+              // Trust indicators
+              Text(
+                'Trusted by professionals worldwide',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  color: const Color(0xFF64748b),
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -569,6 +721,149 @@ class _WelcomePageState extends State<WelcomePage>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEnhancedStatItem(String value, String label, IconData icon) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          size: 20.sp,
+          color: Colors.white.withOpacity(0.9),
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20.sp,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+          ),
+        ),
+        SizedBox(height: 2.h),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.sp,
+            color: Colors.white.withOpacity(0.8),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCleanStatItem(String value, String label) {
+    // Определяем цвет для каждой статистики
+    Color valueColor;
+    if (label == 'Students') {
+      valueColor = const Color(0xFFE53935); // Красный
+    } else if (label == 'Success Rate') {
+      valueColor = const Color(0xFF1976D2); // Синий
+    } else {
+      valueColor = const Color(0xFFE53935); // Красный для Rating
+    }
+    
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 24.sp,
+            fontWeight: FontWeight.w800,
+            color: valueColor,
+            letterSpacing: -0.5,
+          ),
+        ),
+        SizedBox(height: 4.h),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13.sp,
+            color: const Color(0xFF64748b),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfessionalFeatureCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(24.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.8),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+            spreadRadius: 0,
+          ),
+        ],
+        border: Border.all(
+          color: color.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56.w,
+            height: 56.h,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16.r),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 28.sp,
+            ),
+          ),
+          SizedBox(width: 20.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1a1a2e),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                SizedBox(height: 6.h),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: const Color(0xFF64748b),
+                    fontWeight: FontWeight.w400,
+                    height: 1.4,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -679,4 +974,58 @@ class _WelcomePageState extends State<WelcomePage>
       ),
     );
   }
+}
+
+// Custom painter for AI brain pattern
+class AIBrainPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.1)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    // Draw neural network pattern
+    for (int i = 0; i < 8; i++) {
+      final angle = (i * math.pi * 2) / 8;
+      final startX = center.dx + (radius * 0.3) * math.cos(angle);
+      final startY = center.dy + (radius * 0.3) * math.sin(angle);
+      final endX = center.dx + (radius * 0.7) * math.cos(angle);
+      final endY = center.dy + (radius * 0.7) * math.sin(angle);
+
+      canvas.drawLine(
+        Offset(startX, startY),
+        Offset(endX, endY),
+        paint,
+      );
+
+      // Draw nodes
+      canvas.drawCircle(
+        Offset(endX, endY),
+        2,
+        Paint()..color = Colors.white.withOpacity(0.3),
+      );
+    }
+
+    // Draw connecting arcs
+    for (int i = 0; i < 8; i++) {
+      final angle1 = (i * math.pi * 2) / 8;
+      final angle2 = ((i + 2) * math.pi * 2) / 8;
+      
+      final path = Path();
+      path.addArc(
+        Rect.fromCircle(center: center, radius: radius * 0.5),
+        angle1,
+        angle2 - angle1,
+      );
+      
+      canvas.drawPath(path, paint..color = Colors.white.withOpacity(0.05));
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

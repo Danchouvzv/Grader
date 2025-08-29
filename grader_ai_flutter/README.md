@@ -128,6 +128,39 @@ flutter build web
    - Verify audio format compatibility
    - Check device audio settings
 
+## iOS Release Setup
+
+Для подготовки iOS-версии к TestFlight и App Store:
+
+### Быстрый старт
+```bash
+# Установка зависимостей
+xcode-select --install || true
+brew install cocoapods || true
+gem install bundler --no-document
+
+# Настройка проекта
+cd ios && bundle install && cd ..
+flutter clean && flutter pub get
+
+# Проверка окружения
+./scripts/ios.sh doctor
+
+# В Xcode: выбрать Team, включить Automatic signing
+# Product → Archive (проверить сборку)
+
+# Загрузка в TestFlight
+./scripts/ios.sh beta
+```
+
+### Подробная инструкция
+См. [README_IOS.md](README_IOS.md) для детальной настройки в Xcode.
+
+### Автоматизация
+- GitHub Actions: автоматическая сборка по тегам `v*`
+- Fastlane: локальная сборка и загрузка
+- Скрипты: `./scripts/ios.sh [doctor|pods|build|beta]`
+
 ## Contributing
 
 1. Fork the repository

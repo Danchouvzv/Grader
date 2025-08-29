@@ -33,3 +33,5 @@ flutter run \
   --dart-define=OPENAI_API_KEY="$OPENAI_API_KEY" \
   --dart-define=GOOGLE_CLOUD_PROJECT_ID="$GOOGLE_CLOUD_PROJECT_ID" \
   --dart-define=BACKEND_API_URL="$BACKEND_API_URL"
+
+

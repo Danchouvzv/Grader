@@ -5,6 +5,8 @@ import '../../core/audio_recorder_service.dart';
 import '../../core/openai_service.dart';
 import '../../core/config/api_config.dart';
 import '../../features/ielts/domain/entities/ielts_result.dart';
+import '../../features/ielts/domain/entities/ielts_speaking_part.dart';
+import '../../features/ielts/domain/usecases/manage_speaking_session.dart';
 import '../../shared/themes/app_colors.dart';
 import '../../shared/themes/app_typography.dart';
 import '../widgets/ielts_types.dart';
@@ -14,6 +16,8 @@ import '../widgets/task_card.dart';
 import '../widgets/recording_section.dart';
 import '../widgets/results_section.dart';
 import '../widgets/actions_section.dart';
+import '../widgets/speaking_parts_progress.dart';
+import '../widgets/session_results_summary.dart';
 
 class IeltsMvpPage extends StatefulWidget {
   const IeltsMvpPage({super.key});
@@ -25,6 +29,7 @@ class IeltsMvpPage extends StatefulWidget {
 class _IeltsMvpPageState extends State<IeltsMvpPage> {
   final _rec = AudioRecorderService();
   late final _ai = OpenAIService(ApiConfig.openAiApiKey);
+  late final _sessionManager = ManageSpeakingSessionImpl();
 
   @override
   void initState() {
@@ -35,6 +40,23 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
     } else {
       print('Warning: OpenAI API Key not configured properly');
     }
+    
+    // Initialize speaking session
+    _speakingSession = _sessionManager.createNewSession();
+    
+    // Debug: Print session info
+    print('Session created with ${_speakingSession.parts.length} parts');
+    print('Current part index: ${_speakingSession.currentPartIndex}');
+    print('Current part: ${_speakingSession.currentPart.type.title}');
+    print('Current part topic: ${_speakingSession.currentPart.topic}');
+    
+    // Debug: Print all parts info
+    for (int i = 0; i < _speakingSession.parts.length; i++) {
+      final part = _speakingSession.parts[i];
+      print('Part $i: ${part.type.title} - ${part.topic}');
+      print('  Is current: ${i == _speakingSession.currentPartIndex}');
+      print('  Is completed: ${part.isCompleted}');
+    }
   }
 
   IeltsStatus _status = IeltsStatus.idle;
@@ -43,6 +65,7 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
   String? _duration;
   IeltsResult? _result;
   String? _error;
+  late IeltsSpeakingSession _speakingSession;
 
   @override
   void dispose() {
@@ -153,9 +176,13 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
       // Parse the real OpenAI response
       final result = _parseOpenAIResponse(transcript, feedback);
       
+      // Complete current part and update session
+      final updatedSession = _sessionManager.completeCurrentPart(_speakingSession, result);
+      
       setState(() {
         _result = result;
         _status = IeltsStatus.done;
+        _speakingSession = updatedSession;
       });
     } catch (e) {
       print('Error in transcription/grading: $e');
@@ -336,6 +363,43 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
     });
   }
 
+  void _onMoveToNextPart() {
+    if (_speakingSession.canMoveToNextPart) {
+      final updatedSession = _sessionManager.moveToNextPart(_speakingSession);
+      setState(() {
+        _speakingSession = updatedSession;
+        _status = IeltsStatus.idle;
+        _audioPath = null;
+        _audioFileName = null;
+        _duration = null;
+        _result = null;
+        _error = null;
+      });
+    }
+  }
+
+  void _onStartNewSession() {
+    setState(() {
+      _speakingSession = _sessionManager.createNewSession();
+      _status = IeltsStatus.idle;
+      _audioPath = null;
+      _audioFileName = null;
+      _duration = null;
+      _result = null;
+      _error = null;
+    });
+  }
+
+  void _onViewDetailedResults() {
+    // TODO: Navigate to detailed results page
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Detailed results coming soon'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _onSaveResult() {
     // TODO: Implement save functionality
     ScaffoldMessenger.of(context).showSnackBar(
@@ -411,6 +475,40 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
+            // Speaking Parts Progress
+            SliverToBoxAdapter(
+              child: SpeakingPartsProgress(
+                session: _speakingSession,
+                onPartTap: null, // Parts are sequential, no direct navigation
+              ),
+            ),
+
+            // Debug info (remove in production)
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Debug Info:',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                    ),
+                    Text('Current Part Index: ${_speakingSession.currentPartIndex}'),
+                    Text('Current Part Type: ${_speakingSession.currentPart.type.title}'),
+                    Text('Current Part Topic: ${_speakingSession.currentPart.topic}'),
+                    Text('Total Parts: ${_speakingSession.parts.length}'),
+                  ],
+                ),
+              ),
+            ),
+
             // Progress Stepper
             SliverToBoxAdapter(
               child: ProgressStepper(
@@ -422,15 +520,38 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
             // Task Card
             SliverToBoxAdapter(
               child: TaskCard(
-                topic: 'Describe a place you would like to visit.',
-                points: [
-                  'Where this place is',
-                  'Why you want to visit it',
-                  'What you would do there',
-                  'How you think this place has changed',
-                ],
-                timeLimit: 'You have 1-2 minutes to speak',
+                topic: _speakingSession.currentPart.topic,
+                points: _speakingSession.currentPart.points,
+                timeLimit: _speakingSession.currentPart.timeLimit,
                 isRecording: _isRecording,
+                partType: _speakingSession.currentPart.type,
+              ),
+            ),
+
+            // Debug TaskCard info (remove in production)
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TaskCard Debug Info:',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                    ),
+                    Text('Topic: ${_speakingSession.currentPart.topic}'),
+                    Text('Points: ${_speakingSession.currentPart.points.join(', ')}'),
+                    Text('Time Limit: ${_speakingSession.currentPart.timeLimit}'),
+                    Text('Part Type: ${_speakingSession.currentPart.type.title}'),
+                    Text('Part Subtitle: ${_speakingSession.currentPart.type.subtitle}'),
+                  ],
+                ),
               ),
             ),
 
@@ -542,7 +663,20 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
                     onTryAnotherTopic: _onTryAnotherTopic,
                     onSaveResult: _onSaveResult,
                     onShare: _onShare,
+                    onMoveToNextPart: _speakingSession.canMoveToNextPart ? _onMoveToNextPart : null,
+                    showNextPartButton: _speakingSession.canMoveToNextPart,
                   ),
+                ),
+              ),
+            ],
+
+            // Session Results Summary (show when all parts are completed)
+            if (_speakingSession.canCompleteSession) ...[
+              SliverToBoxAdapter(
+                child: SessionResultsSummary(
+                  session: _speakingSession,
+                  onStartNewSession: _onStartNewSession,
+                  onViewDetailedResults: _onViewDetailedResults,
                 ),
               ),
             ],

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import '../../shared/themes/app_colors.dart';
 import '../../shared/themes/app_typography.dart';
 import '../../shared/themes/app_icons.dart';
+import '../../features/ielts/domain/entities/ielts_speaking_part.dart';
 
 class TaskCard extends StatelessWidget {
   final String topic;
   final List<String> points;
   final String timeLimit;
   final bool isRecording;
+  final IeltsSpeakingPartType? partType;
 
   const TaskCard({
     super.key,
@@ -15,6 +17,7 @@ class TaskCard extends StatelessWidget {
     required this.points,
     required this.timeLimit,
     this.isRecording = false,
+    this.partType,
   });
 
   @override
@@ -62,7 +65,7 @@ class TaskCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'IELTS Speaking Part 2',
+                      partType?.title ?? 'IELTS Speaking Part 2',
                       style: AppTypography.titleLarge.copyWith(
                         color: AppColors.textPrimary,
                       ),
@@ -79,7 +82,7 @@ class TaskCard extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        'Individual Long Turn',
+                        partType?.subtitle ?? 'Individual Long Turn',
                         style: AppTypography.labelMedium.copyWith(
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600,

@@ -45,3 +45,14 @@ app.*.map.json
 # Environment files with API keys
 env.dev
 .env
+
+# iOS build artifacts
+*.ipa
+*.dSYM.zip
+ios/fastlane/report.xml
+ios/fastlane/Preview.html
+ios/fastlane/.env
+
+# Fastlane
+ios/fastlane/Appfile
+ios/fastlane/Fastfile
