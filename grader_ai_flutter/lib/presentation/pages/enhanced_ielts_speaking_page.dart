@@ -197,7 +197,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       
       // Grade
       print('🤖 Starting IELTS grading...');
-      final feedback = await _ai.gradeIelts(transcript);
+      final feedback = await _ai.gradeIelts(transcript, durationSeconds: _recordingSeconds);
       print('✅ Grading completed');
       
       final result = _parseOpenAIResponse(transcript, feedback);

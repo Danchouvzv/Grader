@@ -170,7 +170,7 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
 
       // Grade IELTS response with real OpenAI GPT
       print('Starting IELTS grading...');
-      final feedback = await _ai.gradeIelts(transcript);
+      final feedback = await _ai.gradeIelts(transcript, durationSeconds: _recordingSeconds);
       print('Grading completed, parsing response...');
       
       // Parse the real OpenAI response
