@@ -264,6 +264,8 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           pageBuilder: (context, animation, secondaryAnimation) => EnhancedIeltsResultsPage(
             assessment: _result!,
             transcript: _result!.transcript,
+            showNextPartButton: _speakingSession.canMoveToNextPart,
+            onNextPart: _speakingSession.canMoveToNextPart ? _moveToNextPart : null,
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(

@@ -9,11 +9,15 @@ import '../../features/ielts/domain/entities/ielts_result.dart';
 class EnhancedIeltsResultsPage extends StatefulWidget {
   final IeltsResult assessment;
   final String transcript;
+  final bool showNextPartButton;
+  final VoidCallback? onNextPart;
 
   const EnhancedIeltsResultsPage({
     super.key,
     required this.assessment,
     required this.transcript,
+    this.showNextPartButton = false,
+    this.onNextPart,
   });
 
   @override
@@ -410,7 +414,19 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
         // Tips Tab
         SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: _buildTipsTab(),
+          child: Column(
+            children: [
+              _buildTipsTab(),
+              
+              // Next Part Button (if needed)
+              if (widget.showNextPartButton && widget.onNextPart != null) ...[
+                const SizedBox(height: 32),
+                _buildNextPartButton(),
+              ],
+              
+              const SizedBox(height: 40), // Bottom padding
+            ],
+          ),
         ),
       ],
     );
@@ -740,6 +756,63 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildNextPartButton() {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFE53935), // Red
+            const Color(0xFF1976D2), // Blue
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE53935).withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: () {
+          Navigator.pop(context); // Закрываем страницу результатов
+          widget.onNextPart?.call(); // Переходим к следующей части
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.arrow_forward_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Continue to Next Part',
+              style: AppTypography.titleMedium.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
