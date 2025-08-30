@@ -350,29 +350,29 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       final baseScore = overallBand;
       final random = DateTime.now().millisecondsSinceEpoch % 100;
       
-      // Создаем вариацию ±0.5 от общего балла
-      bands['Fluency & Coherence'] = ((baseScore + ((random % 10) - 5) * 0.1) * 2).round() / 2;
-      bands['Lexical Resource'] = ((baseScore + ((random % 12) - 6) * 0.1) * 2).round() / 2;
-      bands['Grammatical Range & Accuracy'] = ((baseScore + ((random % 8) - 4) * 0.1) * 2).round() / 2;
-      bands['Pronunciation'] = ((baseScore + ((random % 6) - 3) * 0.1) * 2).round() / 2;
+      // Создаем вариацию ±0.5 от общего балла - ИСПОЛЬЗУЕМ ПРАВИЛЬНЫЕ КЛЮЧИ ДЛЯ UI!
+      bands['fluency_coherence'] = ((baseScore + ((random % 10) - 5) * 0.1) * 2).round() / 2;
+      bands['lexical_resource'] = ((baseScore + ((random % 12) - 6) * 0.1) * 2).round() / 2;
+      bands['grammar'] = ((baseScore + ((random % 8) - 4) * 0.1) * 2).round() / 2;
+      bands['pronunciation'] = ((baseScore + ((random % 6) - 3) * 0.1) * 2).round() / 2;
       
       // Убеждаемся что все в диапазоне 4.0-9.0
-      bands['Fluency & Coherence'] = bands['Fluency & Coherence']!.clamp(4.0, 9.0);
-      bands['Lexical Resource'] = bands['Lexical Resource']!.clamp(4.0, 9.0);
-      bands['Grammatical Range & Accuracy'] = bands['Grammatical Range & Accuracy']!.clamp(4.0, 9.0);
-      bands['Pronunciation'] = bands['Pronunciation']!.clamp(4.0, 9.0);
+      bands['fluency_coherence'] = bands['fluency_coherence']!.clamp(4.0, 9.0);
+      bands['lexical_resource'] = bands['lexical_resource']!.clamp(4.0, 9.0);
+      bands['grammar'] = bands['grammar']!.clamp(4.0, 9.0);
+      bands['pronunciation'] = bands['pronunciation']!.clamp(4.0, 9.0);
       
-      // Генерируем причины для каждой секции
-      reasons['Fluency & Coherence'] = _generateReasonForScore(bands['Fluency & Coherence']!, 'fluency');
-      reasons['Lexical Resource'] = _generateReasonForScore(bands['Lexical Resource']!, 'vocabulary');
-      reasons['Grammatical Range & Accuracy'] = _generateReasonForScore(bands['Grammatical Range & Accuracy']!, 'grammar');
-      reasons['Pronunciation'] = _generateReasonForScore(bands['Pronunciation']!, 'pronunciation');
+      // Генерируем причины для каждой секции - ИСПОЛЬЗУЕМ ТЕ ЖЕ КЛЮЧИ!
+      reasons['fluency_coherence'] = _generateReasonForScore(bands['fluency_coherence']!, 'fluency');
+      reasons['lexical_resource'] = _generateReasonForScore(bands['lexical_resource']!, 'vocabulary');
+      reasons['grammar'] = _generateReasonForScore(bands['grammar']!, 'grammar');
+      reasons['pronunciation'] = _generateReasonForScore(bands['pronunciation']!, 'pronunciation');
       
       print('✅ FORCED REAL SCORES:');
-      print('   Fluency: ${bands['Fluency & Coherence']} - ${reasons['Fluency & Coherence']}');
-      print('   Lexical: ${bands['Lexical Resource']} - ${reasons['Lexical Resource']}');
-      print('   Grammar: ${bands['Grammatical Range & Accuracy']} - ${reasons['Grammatical Range & Accuracy']}');
-      print('   Pronunciation: ${bands['Pronunciation']} - ${reasons['Pronunciation']}');
+      print('   Fluency: ${bands['fluency_coherence']} - ${reasons['fluency_coherence']}');
+      print('   Lexical: ${bands['lexical_resource']} - ${reasons['lexical_resource']}');
+      print('   Grammar: ${bands['grammar']} - ${reasons['grammar']}');
+      print('   Pronunciation: ${bands['pronunciation']} - ${reasons['pronunciation']}');
 
       // Extract tips and summary from feedback
       final feedbackLower = feedback.toLowerCase();
@@ -594,20 +594,20 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           partType: 'part${_speakingSession.currentPartIndex + 1}',
           durationSeconds: _recordingSeconds,
           overallBand: result.overallBand,
-          fluencyBand: result.bands['Fluency & Coherence'] ?? 6.0,
-          lexicalBand: result.bands['Lexical Resource'] ?? 6.0,
-          grammarBand: result.bands['Grammatical Range & Accuracy'] ?? 6.0,
-          pronunciationBand: result.bands['Pronunciation'] ?? 6.0,
+          fluencyBand: result.bands['fluency_coherence'] ?? 6.0,
+          lexicalBand: result.bands['lexical_resource'] ?? 6.0,
+          grammarBand: result.bands['grammar'] ?? 6.0,
+          pronunciationBand: result.bands['pronunciation'] ?? 6.0,
           transcript: transcript,
           feedback: feedback,
           audioPath: _audioPath,
         );
         
         print('💾 Saved to database with scores:');
-        print('   Fluency: ${result.bands['Fluency & Coherence']}');
-        print('   Lexical: ${result.bands['Lexical Resource']}');
-        print('   Grammar: ${result.bands['Grammatical Range & Accuracy']}');
-        print('   Pronunciation: ${result.bands['Pronunciation']}');
+        print('   Fluency: ${result.bands['fluency_coherence']}');
+        print('   Lexical: ${result.bands['lexical_resource']}');
+        print('   Grammar: ${result.bands['grammar']}');
+        print('   Pronunciation: ${result.bands['pronunciation']}');
         print('✅ Session saved to database');
       }
     } catch (e) {
