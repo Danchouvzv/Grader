@@ -82,7 +82,7 @@ RESPONSE TEXT: "$transcript"
 RESPONSE DURATION: ${durationSeconds != null ? '$durationSeconds seconds' : 'Unknown duration'}
 WORD COUNT: $wordCount words
 
-IMPORTANT: You MUST provide scores in this EXACT format:
+CRITICAL: You MUST follow this EXACT format with NO deviations:
 
 OVERALL BAND: [X.X]
 
@@ -110,12 +110,12 @@ PRACTICE TIPS:
 - [specific tip 2]
 - [specific tip 3]
 
-CRITICAL REQUIREMENTS:
-- Scores must be between 4.0-9.0
-- Each score must have a specific reason
-- Feedback must be based on the actual transcript
-- Tips must be actionable and specific
-- No generic responses - everything must be personalized'''
+MANDATORY REQUIREMENTS:
+- You MUST include "OVERALL BAND:" followed by a number
+- You MUST include "DETAILED SCORES:" with all 4 criteria
+- Each criterion MUST have format: "Name: [X.X] - [reason]"
+- Scores MUST be between 4.0-9.0 with decimal points
+- Do NOT add extra sections or change the format'''
         }
       ]
     };
