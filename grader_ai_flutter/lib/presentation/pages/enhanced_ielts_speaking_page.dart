@@ -8,6 +8,7 @@ import '../widgets/enhanced_navigation_bar.dart';
 import '../../core/audio_recorder_service.dart';
 import '../../core/openai_service.dart';
 import '../../core/config/api_config.dart';
+import '../../core/services/profile_service.dart';
 import '../../features/ielts/domain/entities/ielts_result.dart';
 import '../../features/ielts/domain/entities/ielts_speaking_part.dart';
 import '../../features/ielts/domain/usecases/manage_speaking_session.dart';
@@ -27,6 +28,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
   final _recorder = AudioRecorderService();
   late final _ai = OpenAIService(ApiConfig.openAiApiKey);
   late final _sessionManager = ManageSpeakingSessionImpl();
+  final _profileService = ProfileService();
   
   @override
   void initState() {
@@ -202,6 +204,9 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       
       final result = _parseOpenAIResponse(transcript, feedback);
       
+      // Save session to database
+      await _saveSessionToDatabase(result, transcript, feedback);
+      
       // Complete current part
       final updatedSession = _sessionManager.completeCurrentPart(_speakingSession, result);
       
@@ -297,6 +302,31 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       transcript: transcript,
       timestamp: DateTime.now(),
     );
+  }
+
+  Future<void> _saveSessionToDatabase(IeltsResult result, String transcript, String feedback) async {
+    try {
+      final profile = await _profileService.getCurrentProfile();
+      if (profile?.id != null) {
+        await _profileService.recordSession(
+          userId: profile!.id!,
+          sessionType: 'practice',
+          partType: 'part${_speakingSession.currentPartIndex + 1}',
+          durationSeconds: _recordingSeconds,
+          overallBand: result.overallBand,
+          fluencyBand: result.bands['Fluency & Coherence'] ?? 0.0,
+          lexicalBand: result.bands['Lexical Resource'] ?? 0.0,
+          grammarBand: result.bands['Grammatical Range & Accuracy'] ?? 0.0,
+          pronunciationBand: result.bands['Pronunciation'] ?? 0.0,
+          transcript: transcript,
+          feedback: feedback,
+          audioPath: _audioPath,
+        );
+        print('✅ Session saved to database');
+      }
+    } catch (e) {
+      print('❌ Error saving session to database: $e');
+    }
   }
 
   void _resetRecording() {
