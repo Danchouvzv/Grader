@@ -679,8 +679,8 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => EnhancedIeltsResultsPage(
-            result: overallResult,
-            isOverallResult: true,
+            assessment: overallResult,
+            transcript: 'Complete IELTS Speaking Test - All 3 Parts Completed',
           ),
         ),
       );
