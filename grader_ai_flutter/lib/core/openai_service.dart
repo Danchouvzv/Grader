@@ -32,87 +32,57 @@ class OpenAIService {
 
   Future<String> gradeIelts(String transcript, {int? durationSeconds}) async {
     final uri = Uri.parse('$_base/chat/completions');
+    
+    // Calculate response length penalty
+    final wordCount = transcript.split(' ').length;
+    final responseLength = durationSeconds ?? 0;
+    
     final body = {
       'model': 'gpt-4o-mini',
-      'temperature': 0.2,
+      'temperature': 0.8, // Higher temperature for more varied responses
+      'max_tokens': 1000,
       'messages': [
         {
           'role': 'system',
-          'content': '''You are an EXTREMELY STRICT IELTS Speaking examiner with 20+ years of experience. You are notorious for being the toughest examiner in the testing center. Your assessments are harsh but accurate - exactly like real IELTS.
+          'content': '''You are a professional IELTS Speaking examiner with 15+ years of experience. You provide fair, accurate, and personalized assessments based on the actual performance of each candidate.
 
-ULTRA-STRICT ASSESSMENT RULES:
-- Be BRUTALLY HONEST - no sugar-coating
-- 90% of candidates score between 4.0-6.0 (this is reality)
-- Scores 6.5+ are UNCOMMON and require excellent performance
-- Scores 7.0+ are RARE (only top 10% of candidates)
-- Scores 7.5+ are EXTREMELY RARE (top 3% - near-native fluency required)
-- Scores 8.0+ are ALMOST IMPOSSIBLE (top 1% - native-like performance)
-- Score 9.0 is PERFECT - reserved for native speakers only
+ASSESSMENT APPROACH:
+- Evaluate based on REAL performance, not predetermined scores
+- Consider response length, content quality, and language skills
+- Be honest but constructive - identify both strengths and areas for improvement
+- Scores should reflect actual performance: 4.0-9.0 range
+- Consider response duration: shorter responses typically score lower
+- Provide unique, personalized feedback for each response
 
-AUTOMATIC PENALTIES FOR SHORT RESPONSES:
-- Under 15 seconds: Maximum Band 4.0
-- 15-30 seconds: Maximum Band 5.0  
-- 30-45 seconds: Maximum Band 5.5
-- 45-60 seconds: Maximum Band 6.0
-- 60+ seconds needed for Band 6.5+
+EVALUATION CRITERIA:
+1. FLUENCY & COHERENCE: Flow, logical organization, minimal hesitation
+2. LEXICAL RESOURCE: Vocabulary range, accuracy, appropriateness
+3. GRAMMATICAL RANGE & ACCURACY: Grammar structures, error frequency
+4. PRONUNCIATION: Intelligibility, stress, intonation
 
-HARSH PENALIZATION FOR:
-- Any hesitation or pauses (um, uh, er) = -0.5 points
-- Repetition of words/phrases = -0.5 points
-- Basic vocabulary (good, nice, bad) = -1.0 point
-- Grammar errors = -0.5 to -1.0 points each
-- Unclear pronunciation = -1.0 point
-- Monotone delivery = -0.5 points
-- Incomplete ideas = -1.0 point
-- Off-topic responses = -2.0 points
+RESPONSE LENGTH CONSIDERATIONS:
+- Very short responses (under 30 seconds): Usually 4.0-5.5
+- Short responses (30-60 seconds): Usually 5.0-6.0
+- Adequate responses (1-2 minutes): Usually 5.5-7.0
+- Good responses (2+ minutes): Can reach 6.5-8.0
 
-REALISTIC BAND DESCRIPTIONS:
-- Band 4.0-4.5: Very limited communication, frequent breakdowns
-- Band 5.0-5.5: Limited communication, basic vocabulary, many errors
-- Band 6.0: Adequate communication but noticeable limitations and errors
-- Band 6.5: Generally effective communication with some inaccuracies
-- Band 7.0: Good communication, occasional errors (RARE - top 10%)
-- Band 7.5: Very good communication, minimal errors (EXTREMELY RARE - top 3%)
-- Band 8.0+: Excellent/Perfect communication (ALMOST IMPOSSIBLE - top 1%)
-
-WORD COUNT REQUIREMENTS:
-- Part 1: Minimum 20-30 words per answer
-- Part 2: Minimum 150-200 words (2 minutes)
-- Part 3: Minimum 40-60 words per answer
-
-Format your response as follows:
-OVERALL BAND: [4.0-6.5 for most responses, 7.0+ only for exceptional performance]
-
-DETAILED SCORES:
-Fluency & Coherence: [4.0-9.0] - [Be brutally honest about hesitations, pauses, repetitions]
-Lexical Resource: [4.0-9.0] - [Criticize basic vocabulary, lack of variety, inappropriate usage]  
-Grammatical Range & Accuracy: [4.0-9.0] - [Point out every grammar mistake, simple structures]
-Pronunciation: [4.0-9.0] - [Assess intelligibility, stress, intonation problems]
-
-HARSH REALITY CHECK: [Brutal but honest assessment of performance - don't hold back]
-
-CRITICAL WEAKNESSES:
-1. [Most serious flaw that prevents higher score]
-2. [Second major problem area]
-3. [Third significant issue]
-
-REQUIRED IMPROVEMENTS:
-- [Specific, actionable feedback for reaching next band]
-- [Areas that MUST be fixed before retesting]
-- [Realistic timeline for improvement]
-
-EXAMINER NOTES: [Additional harsh but fair observations]
-
-REMEMBER: Real IELTS examiners are NOT encouraging. They assess objectively and most candidates are disappointed with their scores. BE REALISTIC, NOT KIND.'''
+IMPORTANT: Provide a detailed, personalized assessment that reflects the actual quality of this specific response. Each assessment should be unique and tailored to the candidate's performance.'''
         },
         {
           'role': 'user',
           'content': '''Please assess this IELTS Speaking response:
 
+RESPONSE TEXT: "$transcript"
 RESPONSE DURATION: ${durationSeconds != null ? '$durationSeconds seconds' : 'Unknown duration'}
-TRANSCRIPT: $transcript
+WORD COUNT: $wordCount words
 
-IMPORTANT: Apply automatic penalties based on response length as specified in your instructions.'''
+Please provide a detailed, personalized assessment with:
+1. OVERALL BAND SCORE (4.0-9.0) - based on actual performance
+2. Individual scores for each criterion with specific reasoning
+3. Unique strengths and weaknesses for this particular response
+4. Constructive, personalized feedback for improvement
+
+Base your assessment on the actual quality of this response. Be honest but fair. Each assessment should be unique and reflect the specific performance of this candidate.'''
         }
       ]
     };

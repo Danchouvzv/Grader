@@ -278,30 +278,136 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
   }
 
   IeltsResult _parseOpenAIResponse(String transcript, String feedback) {
-    // Simplified parsing - in production, implement proper parsing
-    return IeltsResult(
-      overallBand: 6.5,
-      bands: {
-        'fluency_coherence': 6.0,
-        'lexical_resource': 6.5,
-        'grammar': 7.0,
-        'pronunciation': 6.5,
-      },
-      reasons: {
-        'fluency_coherence': 'Good flow with some hesitation',
-        'lexical_resource': 'Appropriate vocabulary range',
-        'grammar': 'Complex structures used effectively',
-        'pronunciation': 'Clear pronunciation with minor issues',
-      },
-      summary: 'A competent response with good language use and clear communication.',
-      tips: [
-        'Practice speaking more fluently with fewer pauses',
-        'Expand vocabulary for specific topics',
-        'Work on pronunciation clarity',
-      ],
-      transcript: transcript,
-      timestamp: DateTime.now(),
-    );
+    try {
+      // Parse the AI feedback to extract scores and feedback
+      final lines = feedback.split('\n');
+      double overallBand = 6.0; // Default fallback
+      Map<String, double> bands = {};
+      Map<String, String> reasons = {};
+      List<String> tips = [];
+      String summary = '';
+
+      // Extract overall band score
+      for (final line in lines) {
+        if (line.toLowerCase().contains('overall') && line.toLowerCase().contains('band')) {
+          final bandMatch = RegExp(r'(\d+\.?\d*)').firstMatch(line);
+          if (bandMatch != null) {
+            overallBand = double.tryParse(bandMatch.group(1)!) ?? 6.0;
+          }
+        }
+        
+        // Extract individual band scores
+        if (line.toLowerCase().contains('fluency') || line.toLowerCase().contains('coherence')) {
+          final bandMatch = RegExp(r'(\d+\.?\d*)').firstMatch(line);
+          if (bandMatch != null) {
+            bands['Fluency & Coherence'] = double.tryParse(bandMatch.group(1)!) ?? 6.0;
+            reasons['Fluency & Coherence'] = _extractReason(line);
+          }
+        }
+        
+        if (line.toLowerCase().contains('lexical') || line.toLowerCase().contains('vocabulary')) {
+          final bandMatch = RegExp(r'(\d+\.?\d*)').firstMatch(line);
+          if (bandMatch != null) {
+            bands['Lexical Resource'] = double.tryParse(bandMatch.group(1)!) ?? 6.0;
+            reasons['Lexical Resource'] = _extractReason(line);
+          }
+        }
+        
+        if (line.toLowerCase().contains('grammar') || line.toLowerCase().contains('grammatical')) {
+          final bandMatch = RegExp(r'(\d+\.?\d*)').firstMatch(line);
+          if (bandMatch != null) {
+            bands['Grammatical Range & Accuracy'] = double.tryParse(bandMatch.group(1)!) ?? 6.0;
+            reasons['Grammatical Range & Accuracy'] = _extractReason(line);
+          }
+        }
+        
+        if (line.toLowerCase().contains('pronunciation')) {
+          final bandMatch = RegExp(r'(\d+\.?\d*)').firstMatch(line);
+          if (bandMatch != null) {
+            bands['Pronunciation'] = double.tryParse(bandMatch.group(1)!) ?? 6.0;
+            reasons['Pronunciation'] = _extractReason(line);
+          }
+        }
+      }
+
+      // Set default values if not found
+      bands['Fluency & Coherence'] ??= 6.0;
+      bands['Lexical Resource'] ??= 6.0;
+      bands['Grammatical Range & Accuracy'] ??= 6.0;
+      bands['Pronunciation'] ??= 6.0;
+
+      // Extract tips and summary from feedback
+      final feedbackLower = feedback.toLowerCase();
+      if (feedbackLower.contains('improve') || feedbackLower.contains('practice')) {
+        tips.add('Focus on areas mentioned in the feedback');
+      }
+      if (feedbackLower.contains('vocabulary')) {
+        tips.add('Expand your vocabulary range');
+      }
+      if (feedbackLower.contains('grammar')) {
+        tips.add('Work on grammatical accuracy');
+      }
+      if (feedbackLower.contains('fluency')) {
+        tips.add('Practice speaking more fluently');
+      }
+      if (feedbackLower.contains('pronunciation')) {
+        tips.add('Improve pronunciation clarity');
+      }
+
+      // Generate summary based on scores
+      if (overallBand >= 7.0) {
+        summary = 'Excellent performance with strong language skills.';
+      } else if (overallBand >= 6.5) {
+        summary = 'Good performance with some areas for improvement.';
+      } else if (overallBand >= 6.0) {
+        summary = 'Competent performance with noticeable limitations.';
+      } else if (overallBand >= 5.5) {
+        summary = 'Limited performance requiring significant improvement.';
+      } else {
+        summary = 'Basic performance with major areas for development.';
+      }
+
+      return IeltsResult(
+        overallBand: overallBand,
+        bands: bands,
+        reasons: reasons,
+        summary: summary,
+        tips: tips.isNotEmpty ? tips : ['Review the detailed feedback above'],
+        transcript: transcript,
+        timestamp: DateTime.now(),
+      );
+    } catch (e) {
+      print('Error parsing AI response: $e');
+      // Fallback to default values
+      return IeltsResult(
+        overallBand: 6.0,
+        bands: {
+          'Fluency & Coherence': 6.0,
+          'Lexical Resource': 6.0,
+          'Grammatical Range & Accuracy': 6.0,
+          'Pronunciation': 6.0,
+        },
+        reasons: {
+          'Fluency & Coherence': 'Analysis error - check feedback',
+          'Lexical Resource': 'Analysis error - check feedback',
+          'Grammatical Range & Accuracy': 'Analysis error - check feedback',
+          'Pronunciation': 'Analysis error - check feedback',
+        },
+        summary: 'AI analysis completed. Check detailed feedback above.',
+        tips: ['Review the AI feedback for detailed assessment'],
+        transcript: transcript,
+        timestamp: DateTime.now(),
+      );
+    }
+  }
+
+  String _extractReason(String line) {
+    // Extract the reason part after the score
+    final parts = line.split(':');
+    if (parts.length > 1) {
+      return parts[1].trim();
+    }
+    return 'Detailed feedback available in AI response';
   }
 
   Future<void> _saveSessionToDatabase(IeltsResult result, String transcript, String feedback) async {
