@@ -296,7 +296,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           }
         }
         
-        // Extract individual band scores
+        // Extract individual band scores with more flexible patterns
         if (line.toLowerCase().contains('fluency') || line.toLowerCase().contains('coherence')) {
           final bandMatch = RegExp(r'(\d+\.?\d*)').firstMatch(line);
           if (bandMatch != null) {
@@ -305,7 +305,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           }
         }
         
-        if (line.toLowerCase().contains('lexical') || line.toLowerCase().contains('vocabulary')) {
+        if (line.toLowerCase().contains('lexical') || line.toLowerCase().contains('vocabulary') || line.toLowerCase().contains('lexical resource')) {
           final bandMatch = RegExp(r'(\d+\.?\d*)').firstMatch(line);
           if (bandMatch != null) {
             bands['Lexical Resource'] = double.tryParse(bandMatch.group(1)!) ?? 6.0;
@@ -313,7 +313,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           }
         }
         
-        if (line.toLowerCase().contains('grammar') || line.toLowerCase().contains('grammatical')) {
+        if (line.toLowerCase().contains('grammar') || line.toLowerCase().contains('grammatical') || line.toLowerCase().contains('grammatical range')) {
           final bandMatch = RegExp(r'(\d+\.?\d*)').firstMatch(line);
           if (bandMatch != null) {
             bands['Grammatical Range & Accuracy'] = double.tryParse(bandMatch.group(1)!) ?? 6.0;
@@ -338,20 +338,41 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
 
       // Extract tips and summary from feedback
       final feedbackLower = feedback.toLowerCase();
-      if (feedbackLower.contains('improve') || feedbackLower.contains('practice')) {
-        tips.add('Focus on areas mentioned in the feedback');
+      
+      // Look for specific tips sections
+      if (feedbackLower.contains('practice tips:') || feedbackLower.contains('tips:')) {
+        final tipsSection = feedback.split(RegExp(r'practice tips:|tips:', caseSensitive: false));
+        if (tipsSection.length > 1) {
+          final tipsText = tipsSection[1];
+          final tipLines = tipsText.split('\n').where((line) => line.trim().startsWith('-')).take(3);
+          tips.addAll(tipLines.map((tip) => tip.trim().substring(1).trim()));
+        }
       }
-      if (feedbackLower.contains('vocabulary')) {
-        tips.add('Expand your vocabulary range');
+      
+      // Fallback tips if no structured section found
+      if (tips.isEmpty) {
+        if (feedbackLower.contains('improve') || feedbackLower.contains('practice')) {
+          tips.add('Focus on areas mentioned in the feedback');
+        }
+        if (feedbackLower.contains('vocabulary')) {
+          tips.add('Expand your vocabulary range');
+        }
+        if (feedbackLower.contains('grammar')) {
+          tips.add('Work on grammatical accuracy');
+        }
+        if (feedbackLower.contains('fluency')) {
+          tips.add('Practice speaking more fluently');
+        }
+        if (feedbackLower.contains('pronunciation')) {
+          tips.add('Improve pronunciation clarity');
+        }
       }
-      if (feedbackLower.contains('grammar')) {
-        tips.add('Work on grammatical accuracy');
-      }
-      if (feedbackLower.contains('fluency')) {
-        tips.add('Practice speaking more fluently');
-      }
-      if (feedbackLower.contains('pronunciation')) {
-        tips.add('Improve pronunciation clarity');
+      
+      // Ensure we have at least some tips
+      if (tips.isEmpty) {
+        tips.add('Review the detailed AI feedback above');
+        tips.add('Focus on the specific areas mentioned');
+        tips.add('Practice regularly to improve your skills');
       }
 
       // Generate summary based on scores
@@ -405,8 +426,19 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
     // Extract the reason part after the score
     final parts = line.split(':');
     if (parts.length > 1) {
-      return parts[1].trim();
+      final reason = parts[1].trim();
+      // Remove the score from the reason if it's there
+      final scorePattern = RegExp(r'^\d+\.?\d*\s*-\s*');
+      return reason.replaceFirst(scorePattern, '').trim();
     }
+    
+    // Try to extract reason from different patterns
+    final dashPattern = RegExp(r'-\s*(.+)');
+    final dashMatch = dashPattern.firstMatch(line);
+    if (dashMatch != null) {
+      return dashMatch.group(1)?.trim() ?? 'Detailed feedback available';
+    }
+    
     return 'Detailed feedback available in AI response';
   }
 
