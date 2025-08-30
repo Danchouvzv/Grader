@@ -632,6 +632,92 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
         _speakingSession = updatedSession;
       });
       _resetRecording();
+    } else {
+      // Все части завершены - показываем общий результат
+      _showOverallResults();
+    }
+  }
+
+  void _showOverallResults() {
+    // Собираем результаты всех частей
+    final allResults = _speakingSession.parts
+        .where((part) => part.result != null)
+        .map((part) => part.result!)
+        .toList();
+    
+    if (allResults.isNotEmpty) {
+      // Вычисляем средние баллы
+      final overallBand = allResults.map((r) => r.overallBand).reduce((a, b) => a + b) / allResults.length;
+      
+      final avgFluency = allResults.map((r) => r.bands['fluency_coherence'] ?? 6.0).reduce((a, b) => a + b) / allResults.length;
+      final avgLexical = allResults.map((r) => r.bands['lexical_resource'] ?? 6.0).reduce((a, b) => a + b) / allResults.length;
+      final avgGrammar = allResults.map((r) => r.bands['grammar'] ?? 6.0).reduce((a, b) => a + b) / allResults.length;
+      final avgPronunciation = allResults.map((r) => r.bands['pronunciation'] ?? 6.0).reduce((a, b) => a + b) / allResults.length;
+      
+      // Создаем общий результат
+      final overallResult = IeltsResult(
+        overallBand: (overallBand * 2).round() / 2, // Округляем до 0.5
+        bands: {
+          'fluency_coherence': (avgFluency * 2).round() / 2,
+          'lexical_resource': (avgLexical * 2).round() / 2,
+          'grammar': (avgGrammar * 2).round() / 2,
+          'pronunciation': (avgPronunciation * 2).round() / 2,
+        },
+        reasons: {
+          'fluency_coherence': 'Average across all three parts',
+          'lexical_resource': 'Average across all three parts',
+          'grammar': 'Average across all three parts',
+          'pronunciation': 'Average across all three parts',
+        },
+        summary: _generateOverallSummary(overallBand, allResults.length),
+        tips: _generateOverallTips(overallBand),
+        transcript: 'Complete IELTS Speaking Test',
+        timestamp: DateTime.now(),
+      );
+      
+      // Переходим на страницу результатов
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => EnhancedIeltsResultsPage(
+            result: overallResult,
+            isOverallResult: true,
+          ),
+        ),
+      );
+    }
+  }
+
+  String _generateOverallSummary(double overallBand, int partsCompleted) {
+    if (overallBand >= 7.0) {
+      return 'Excellent performance! You completed all $partsCompleted parts of the IELTS Speaking test with strong language skills across all areas.';
+    } else if (overallBand >= 6.5) {
+      return 'Good performance! You successfully completed all $partsCompleted parts with generally effective communication skills.';
+    } else if (overallBand >= 6.0) {
+      return 'Competent performance! You completed all $partsCompleted parts, showing adequate communication with some areas for improvement.';
+    } else {
+      return 'You completed all $partsCompleted parts of the test. Focus on the detailed feedback to improve your speaking skills.';
+    }
+  }
+
+  List<String> _generateOverallTips(double overallBand) {
+    if (overallBand >= 7.0) {
+      return [
+        'Maintain your excellent speaking level with regular practice',
+        'Focus on advanced vocabulary and complex structures',
+        'Work on natural intonation and stress patterns',
+      ];
+    } else if (overallBand >= 6.0) {
+      return [
+        'Practice speaking on a variety of topics daily',
+        'Work on expanding your vocabulary range',
+        'Focus on reducing hesitations and fillers',
+      ];
+    } else {
+      return [
+        'Practice basic conversation skills regularly',
+        'Build your core vocabulary for common topics',
+        'Work on pronunciation clarity and basic grammar',
+      ];
     }
   }
 
@@ -902,11 +988,11 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       alignment: Alignment.center,
       children: [
         SizedBox(
-          width: 50.w,
-          height: 50.h,
+          width: 45.w, // Уменьшили размер
+          height: 45.h,
           child: CircularProgressIndicator(
             value: progress,
-            strokeWidth: 4,
+            strokeWidth: 3, // Уменьшили толщину
             backgroundColor: const Color(0xFFE2E8F0),
             valueColor: AlwaysStoppedAnimation<Color>(
               const Color(0xFFE53935),
@@ -914,16 +1000,16 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           ),
         ),
         Container(
-          width: 40.w,
-          height: 40.h,
+          width: 35.w, // Уменьшили размер
+          height: 35.h,
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF1a1a2e).withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                blurRadius: 6, // Уменьшили тень
+                offset: const Offset(0, 1),
               ),
             ],
           ),
@@ -931,7 +1017,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
             child: Text(
               '${(_speakingSession.currentPartIndex + 1)}',
               style: TextStyle(
-                fontSize: 14.sp,
+                fontSize: 12.sp, // Уменьшили шрифт
                 fontWeight: FontWeight.w800,
                 color: const Color(0xFFE53935),
               ),

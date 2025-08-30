@@ -138,12 +138,38 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
             opacity: _fadeAnimation,
             child: SlideTransition(
               position: _slideAnimation,
-              child: CustomScrollView(
-                slivers: [
-                  _buildHeader(),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(20.w),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    // Header
+                    Container(
+                      margin: EdgeInsets.all(20.w),
+                      padding: EdgeInsets.all(24.w),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFFE53935),
+                            const Color(0xFF1976D2),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFE53935).withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: _buildHeaderContent(),
+                    ),
+                    
+                    // Main content
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20.w),
                       child: Column(
                         children: [
                           _buildStatsGrid(),
@@ -155,17 +181,126 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                           _buildRecentSessions(),
                           SizedBox(height: 24.h),
                           _buildAchievements(),
-                          SizedBox(height: 40.h),
+                          SizedBox(height: 60.h), // Extra bottom padding
                         ],
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeaderContent() {
+    return Column(
+      children: [
+        // Profile Avatar and Name
+        Row(
+          children: [
+            Container(
+              width: 80.w,
+              height: 80.h,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 2,
+                ),
+              ),
+              child: Icon(
+                Icons.person_rounded,
+                color: Colors.white,
+                size: 40.w,
+              ),
+            ),
+            SizedBox(width: 16.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _profile?.name ?? 'User',
+                    style: TextStyle(
+                      fontSize: 24.sp,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.military_tech_rounded,
+                        color: Colors.white.withOpacity(0.9),
+                        size: 16.w,
+                      ),
+                      SizedBox(width: 4.w),
+                      Text(
+                        'Level ${_profile?.level ?? 1} • ${_profile?.levelTitle ?? 'Beginner'}',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_profile?.sessionsToNextLevel != null && _profile!.sessionsToNextLevel > 0) ...[
+                    SizedBox(height: 4.h),
+                    Text(
+                      '${_profile!.sessionsToNextLevel} sessions to next level',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: _showSettingsMenu,
+              icon: Icon(
+                Icons.settings_rounded,
+                color: Colors.white,
+                size: 24.w,
+              ),
+            ),
+          ],
+        ),
+        
+        SizedBox(height: 20.h),
+        
+        // Current Streak and Target
+        Row(
+          children: [
+            Expanded(
+              child: _buildHeaderStat(
+                '🔥',
+                _profile?.streakText ?? 'No streak',
+                'Current Streak',
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 40.h,
+              color: Colors.white.withOpacity(0.3),
+            ),
+            Expanded(
+              child: _buildHeaderStat(
+                '🎯',
+                'Band ${_profile?.targetBand.toStringAsFixed(1) ?? '7.0'}',
+                'Target Score',
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
