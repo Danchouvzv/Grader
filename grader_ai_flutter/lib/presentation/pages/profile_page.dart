@@ -439,27 +439,52 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
 
   Widget _buildHeaderStat(IconData icon, String value, String label) {
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
-          icon,
-          color: Colors.white,
-          size: 20.sp,
+        // Иконка с фоном
+        Container(
+          padding: EdgeInsets.all(8.w),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 22.sp, // Увеличили размер
+          ),
         ),
-        SizedBox(height: 4.h),
+        
+        SizedBox(height: 8.h), // Увеличили отступ
+        
+        // Значение
         Text(
           value,
           style: TextStyle(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w700,
+            fontSize: 18.sp, // Увеличили размер
+            fontWeight: FontWeight.w800,
             color: Colors.white,
+            height: 1.1,
           ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        
+        SizedBox(height: 4.h),
+        
+        // Лейбл
         Text(
           label,
           style: TextStyle(
-            fontSize: 12.sp,
-            color: Colors.white.withOpacity(0.8),
+            fontSize: 13.sp, // Увеличили размер
+            color: Colors.white.withOpacity(0.9),
+            fontWeight: FontWeight.w600,
+            height: 1.2,
           ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
@@ -470,9 +495,9 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      mainAxisSpacing: 24.h, // Увеличили отступы еще больше
+      mainAxisSpacing: 24.h,
       crossAxisSpacing: 24.w,
-      childAspectRatio: 1.8, // Увеличили aspect ratio для предотвращения overflow
+      childAspectRatio: 1.2, // Уменьшили для большей высоты карточек
       children: [
         _buildStatCard(
           Icons.analytics_rounded,
@@ -504,49 +529,70 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
 
   Widget _buildStatCard(IconData icon, String value, String label, Color color) {
     return Container(
-      padding: EdgeInsets.all(16.w),
+      padding: EdgeInsets.all(20.w), // Увеличили padding
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
+        borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: 24.sp, // Оптимальный размер иконки
-          ),
-          SizedBox(height: 8.h), // Увеличили отступ для лучшего баланса
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16.sp, // Оптимальный размер для значений
-              fontWeight: FontWeight.w800,
+          // Иконка с адаптивным размером
+          Container(
+            padding: EdgeInsets.all(12.w),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16.r),
+            ),
+            child: Icon(
+              icon,
               color: color,
+              size: 28.sp, // Увеличили размер иконки
             ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(height: 6.h), // Увеличили отступ
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12.sp, // Оптимальный размер для лейблов
-              color: const Color(0xFF64748b),
-              fontWeight: FontWeight.w500,
+          
+          SizedBox(height: 16.h), // Увеличили отступ
+          
+          // Значение с адаптивным размером
+          Flexible(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 20.sp, // Увеличили размер значения
+                fontWeight: FontWeight.w900,
+                color: color,
+                height: 1.1, // Уменьшили высоту строки
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          ),
+          
+          SizedBox(height: 8.h), // Оптимальный отступ
+          
+          // Лейбл с адаптивным размером
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.sp, // Увеличили размер лейбла
+                color: const Color(0xFF64748b),
+                fontWeight: FontWeight.w600,
+                height: 1.2, // Оптимальная высота строки
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
