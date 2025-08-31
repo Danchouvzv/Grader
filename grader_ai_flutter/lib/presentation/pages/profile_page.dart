@@ -181,7 +181,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                           _buildRecentSessions(),
                           SizedBox(height: 24.h),
                           _buildAchievements(),
-                          SizedBox(height: 60.h), // Extra bottom padding
+                          SizedBox(height: 80.h), // Увеличили bottom padding
                         ],
                       ),
                     ),
@@ -469,9 +469,9 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      mainAxisSpacing: 16.h,
-      crossAxisSpacing: 16.w,
-      childAspectRatio: 1.3,
+      mainAxisSpacing: 20.h, // Увеличили отступы
+      crossAxisSpacing: 20.w,
+      childAspectRatio: 1.5, // Увеличили aspect ratio для лучшего размещения
       children: [
         _buildStatCard(
           '📊',
@@ -520,26 +520,31 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
         children: [
           Text(
             icon,
-            style: TextStyle(fontSize: 24.sp),
+            style: TextStyle(fontSize: 22.sp), // Уменьшили размер иконки
           ),
-          SizedBox(height: 8.h),
+          SizedBox(height: 6.h), // Уменьшили отступ
           Text(
             value,
             style: TextStyle(
-              fontSize: 20.sp,
+              fontSize: 18.sp, // Уменьшили размер значения
               fontWeight: FontWeight.w800,
               color: color,
             ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           SizedBox(height: 4.h),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12.sp,
+              fontSize: 11.sp, // Уменьшили размер лейбла
               color: const Color(0xFF64748b),
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

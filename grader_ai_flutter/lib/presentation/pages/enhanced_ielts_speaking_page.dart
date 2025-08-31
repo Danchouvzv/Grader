@@ -785,14 +785,14 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       ),
       child: Column(
         children: [
-          // Top Row
+          // Top Row - Simplified to prevent overflow
           Row(
             children: [
               // Back Button
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
-                  padding: EdgeInsets.all(12.w),
+                  padding: EdgeInsets.all(10.w), // Уменьшили padding
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -800,7 +800,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                         const Color(0xFF1976D2).withOpacity(0.1),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(16.r),
+                    borderRadius: BorderRadius.circular(14.r),
                     border: Border.all(
                       color: const Color(0xFFE53935).withOpacity(0.2),
                       width: 1,
@@ -809,85 +809,54 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                   child: Icon(
                     Icons.arrow_back_ios_rounded,
                     color: const Color(0xFFE53935),
-                    size: 20.w,
+                    size: 18.w, // Уменьшили размер иконки
                   ),
                 ),
               ),
               
-              SizedBox(width: 16.w),
+              SizedBox(width: 12.w), // Уменьшили отступ
               
-              // Title Section with AI Logo
+              // Title Section - Simplified
               Expanded(
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // AI Logo
-                    Container(
-                      width: 40.w,
-                      height: 40.h,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFFE53935),
-                            const Color(0xFF1976D2),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12.r),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFE53935).withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.auto_awesome_rounded,
-                        color: Colors.white,
-                        size: 20.w,
-                      ),
-                    ),
-                    
-                    SizedBox(width: 12.w),
-                    
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              'IELTS',
-                              style: TextStyle(
-                                fontSize: 18.sp,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFFE53935),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            SizedBox(width: 4.w),
-                            Text(
-                              'Speaking',
-                              style: TextStyle(
-                                fontSize: 18.sp,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF1976D2),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
                         Text(
-                          'AI-Powered Practice',
+                          'IELTS',
                           style: TextStyle(
-                            fontSize: 12.sp,
-                            color: const Color(0xFF64748b),
-                            fontWeight: FontWeight.w500,
+                            fontSize: 16.sp, // Уменьшили размер шрифта
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFE53935),
+                            letterSpacing: 0.3, // Уменьшили letter spacing
+                          ),
+                        ),
+                        SizedBox(width: 2.w), // Уменьшили отступ
+                        Text(
+                          'Speaking',
+                          style: TextStyle(
+                            fontSize: 16.sp, // Уменьшили размер шрифта
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF1976D2),
+                            letterSpacing: 0.3, // Уменьшили letter spacing
                           ),
                         ),
                       ],
                     ),
+                    Text(
+                      'AI-Powered Practice',
+                      style: TextStyle(
+                        fontSize: 11.sp, // Уменьшили размер шрифта
+                        color: const Color(0xFF64748b),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
               ),
+              
+              SizedBox(width: 8.w), // Добавили отступ перед progress circle
               
               // Progress Circle
               _buildProgressCircle(),
