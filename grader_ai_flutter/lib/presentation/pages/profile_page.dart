@@ -281,7 +281,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           children: [
             Expanded(
               child: _buildHeaderStat(
-                '🔥',
+                Icons.local_fire_department_rounded,
                 _profile?.streakText ?? 'No streak',
                 'Current Streak',
               ),
@@ -293,7 +293,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
             ),
             Expanded(
               child: _buildHeaderStat(
-                '🎯',
+                Icons.track_changes_rounded,
                 'Band ${_profile?.targetBand.toStringAsFixed(1) ?? '7.0'}',
                 'Target Score',
               ),
@@ -412,7 +412,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
               children: [
                 Expanded(
                   child: _buildHeaderStat(
-                    '🔥',
+                    Icons.local_fire_department_rounded,
                     _profile?.streakText ?? 'No streak',
                     'Current Streak',
                   ),
@@ -424,7 +424,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                 ),
                 Expanded(
                   child: _buildHeaderStat(
-                    '🎯',
+                    Icons.track_changes_rounded,
                     'Band ${_profile?.targetBand.toStringAsFixed(1) ?? '7.0'}',
                     'Target Score',
                   ),
@@ -437,12 +437,13 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildHeaderStat(String icon, String value, String label) {
+  Widget _buildHeaderStat(IconData icon, String value, String label) {
     return Column(
       children: [
-        Text(
+        Icon(
           icon,
-          style: TextStyle(fontSize: 20.sp),
+          color: Colors.white,
+          size: 20.sp,
         ),
         SizedBox(height: 4.h),
         Text(
@@ -469,30 +470,30 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      mainAxisSpacing: 20.h, // Увеличили отступы
-      crossAxisSpacing: 20.w,
-      childAspectRatio: 1.5, // Увеличили aspect ratio для лучшего размещения
+      mainAxisSpacing: 24.h, // Увеличили отступы еще больше
+      crossAxisSpacing: 24.w,
+      childAspectRatio: 1.8, // Увеличили aspect ratio для предотвращения overflow
       children: [
         _buildStatCard(
-          '📊',
+          Icons.analytics_rounded,
           '${_stats['totalSessions'] ?? 0}',
           'Total Sessions',
           const Color(0xFFE53935),
         ),
         _buildStatCard(
-          '⏱️',
+          Icons.timer_rounded,
           _formatDuration(_stats['totalPracticeTime'] ?? 0),
           'Practice Time',
           const Color(0xFF1976D2),
         ),
         _buildStatCard(
-          '📈',
+          Icons.trending_up_rounded,
           (_stats['averageBand'] ?? 0.0).toStringAsFixed(1),
           'Average Band',
           const Color(0xFF10B981),
         ),
         _buildStatCard(
-          '🏆',
+          Icons.emoji_events_rounded,
           (_stats['bestBand'] ?? 0.0).toStringAsFixed(1),
           'Best Score',
           const Color(0xFFF59E0B),
@@ -501,7 +502,7 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildStatCard(String icon, String value, String label, Color color) {
+  Widget _buildStatCard(IconData icon, String value, String label, Color color) {
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
@@ -518,15 +519,16 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
+          Icon(
             icon,
-            style: TextStyle(fontSize: 22.sp), // Уменьшили размер иконки
+            color: color,
+            size: 24.sp, // Оптимальный размер иконки
           ),
-          SizedBox(height: 6.h), // Уменьшили отступ
+          SizedBox(height: 8.h), // Увеличили отступ для лучшего баланса
           Text(
             value,
             style: TextStyle(
-              fontSize: 18.sp, // Уменьшили размер значения
+              fontSize: 16.sp, // Оптимальный размер для значений
               fontWeight: FontWeight.w800,
               color: color,
             ),
@@ -534,11 +536,11 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(height: 4.h),
+          SizedBox(height: 6.h), // Увеличили отступ
           Text(
             label,
             style: TextStyle(
-              fontSize: 11.sp, // Уменьшили размер лейбла
+              fontSize: 12.sp, // Оптимальный размер для лейблов
               color: const Color(0xFF64748b),
               fontWeight: FontWeight.w500,
             ),
