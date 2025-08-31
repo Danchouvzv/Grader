@@ -491,85 +491,102 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
   }
 
   Widget _buildStatsGrid() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 24.h,
-      crossAxisSpacing: 24.w,
-      childAspectRatio: 1.2, // Уменьшили для большей высоты карточек
-      children: [
-        _buildStatCard(
-          Icons.analytics_rounded,
-          '${_stats['totalSessions'] ?? 0}',
-          'Total Sessions',
-          const Color(0xFFE53935),
-        ),
-        _buildStatCard(
-          Icons.timer_rounded,
-          _formatDuration(_stats['totalPracticeTime'] ?? 0),
-          'Practice Time',
-          const Color(0xFF1976D2),
-        ),
-        _buildStatCard(
-          Icons.trending_up_rounded,
-          (_stats['averageBand'] ?? 0.0).toStringAsFixed(1),
-          'Average Band',
-          const Color(0xFF10B981),
-        ),
-        _buildStatCard(
-          Icons.emoji_events_rounded,
-          (_stats['bestBand'] ?? 0.0).toStringAsFixed(1),
-          'Best Score',
-          const Color(0xFFF59E0B),
-        ),
-      ],
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8.w), // Добавляем боковые отступы
+      child: GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        mainAxisSpacing: 28.h, // Увеличили отступы между карточками
+        crossAxisSpacing: 28.w,
+        childAspectRatio: 1.2, // Уменьшили для большей высоты карточек
+        children: [
+          _buildStatCard(
+            Icons.analytics_rounded,
+            '${_stats['totalSessions'] ?? 0}',
+            'Total Sessions',
+            const Color(0xFFE53935),
+          ),
+          _buildStatCard(
+            Icons.timer_rounded,
+            _formatDuration(_stats['totalPracticeTime'] ?? 0),
+            'Practice Time',
+            const Color(0xFF1976D2),
+          ),
+          _buildStatCard(
+            Icons.trending_up_rounded,
+            (_stats['averageBand'] ?? 0.0).toStringAsFixed(1),
+            'Average Band',
+            const Color(0xFF10B981),
+          ),
+          _buildStatCard(
+            Icons.emoji_events_rounded,
+            (_stats['bestBand'] ?? 0.0).toStringAsFixed(1),
+            'Best Score',
+            const Color(0xFFF59E0B),
+            isHighlighted: true, // Выделяем главную метрику
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildStatCard(IconData icon, String value, String label, Color color) {
+  Widget _buildStatCard(IconData icon, String value, String label, Color color, {bool isHighlighted = false}) {
     return Container(
       padding: EdgeInsets.all(20.w), // Увеличили padding
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20.r),
+        borderRadius: BorderRadius.circular(24.r), // Более скруглённые углы
+        border: isHighlighted ? Border.all(
+          color: color.withOpacity(0.6),
+          width: 2.5,
+        ) : null,
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
+            color: color.withOpacity(isHighlighted ? 0.15 : 0.08),
+            blurRadius: isHighlighted ? 25 : 20,
+            offset: const Offset(0, 8),
+            spreadRadius: isHighlighted ? 3 : 2,
+          ),
+          BoxShadow(
+            color: color.withOpacity(isHighlighted ? 0.08 : 0.05),
+            blurRadius: isHighlighted ? 50 : 40,
+            offset: const Offset(0, 16),
+            spreadRadius: isHighlighted ? 2 : 1,
           ),
         ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Равномерное распределение
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Иконка с адаптивным размером
           Container(
-            padding: EdgeInsets.all(12.w),
+            padding: EdgeInsets.all(14.w),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16.r),
+              color: color.withOpacity(0.15), // Увеличили opacity
+              borderRadius: BorderRadius.circular(18.r),
+              border: Border.all(
+                color: color.withOpacity(0.3),
+                width: 1.5,
+              ),
             ),
             child: Icon(
               icon,
-              color: color,
-              size: 28.sp, // Увеличили размер иконки
+              color: color.withOpacity(0.9), // Темнее для лучшего контраста
+              size: 30.sp, // Увеличили размер иконки
             ),
           ),
-          
-          SizedBox(height: 16.h), // Увеличили отступ
           
           // Значение с адаптивным размером
           Flexible(
             child: Text(
               value,
               style: TextStyle(
-                fontSize: 20.sp, // Увеличили размер значения
+                fontSize: isHighlighted ? 24.sp : 22.sp, // Больше для выделенной
                 fontWeight: FontWeight.w900,
-                color: color,
-                height: 1.1, // Уменьшили высоту строки
+                color: color.withOpacity(0.95), // Темнее для лучшего контраста
+                height: 1.0, // Уменьшили высоту строки
               ),
               textAlign: TextAlign.center,
               maxLines: 1,
@@ -577,17 +594,15 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
             ),
           ),
           
-          SizedBox(height: 8.h), // Оптимальный отступ
-          
           // Лейбл с адаптивным размером
           Flexible(
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 13.sp, // Увеличили размер лейбла
-                color: const Color(0xFF64748b),
-                fontWeight: FontWeight.w600,
-                height: 1.2, // Оптимальная высота строки
+                fontSize: 14.sp, // Увеличили размер лейбла
+                color: const Color(0xFF374151), // Темнее для лучшего контраста
+                fontWeight: FontWeight.w700, // Жирнее
+                height: 1.1, // Оптимальная высота строки
               ),
               textAlign: TextAlign.center,
               maxLines: 2,
