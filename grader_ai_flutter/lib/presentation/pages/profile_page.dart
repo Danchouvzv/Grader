@@ -173,13 +173,13 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
                       child: Column(
                         children: [
                           _buildStatsGrid(),
-                          SizedBox(height: 24.h),
+                          SizedBox(height: 20.h), // Эталонные отступы
                           _buildProgressChart(),
-                          SizedBox(height: 24.h),
+                          SizedBox(height: 20.h), // Эталонные отступы
                           _buildInsightsCard(),
-                          SizedBox(height: 24.h),
+                          SizedBox(height: 20.h), // Эталонные отступы
                           _buildRecentSessions(),
-                          SizedBox(height: 24.h),
+                          SizedBox(height: 20.h), // Эталонные отступы
                           _buildAchievements(),
                           SizedBox(height: 80.h), // Увеличили bottom padding
                         ],
@@ -439,29 +439,32 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
 
   Widget _buildHeaderStat(IconData icon, String value, String label) {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Убираем фиксированные отступы
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Иконка с фоном
         Container(
-          padding: EdgeInsets.all(8.w),
+          padding: EdgeInsets.all(10.w), // Оптимальный padding
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12.r),
+            borderRadius: BorderRadius.circular(16.r), // Единый радиус
+            border: Border.all(
+              color: Colors.white.withOpacity(0.3),
+              width: 1.0,
+            ),
           ),
           child: Icon(
             icon,
             color: Colors.white,
-            size: 22.sp, // Увеличили размер
+            size: 24.sp, // Оптимальный размер
           ),
         ),
-        
-        SizedBox(height: 8.h), // Увеличили отступ
         
         // Значение
         Text(
           value,
           style: TextStyle(
-            fontSize: 18.sp, // Увеличили размер
+            fontSize: 20.sp, // Оптимальный размер
             fontWeight: FontWeight.w800,
             color: Colors.white,
             height: 1.1,
@@ -471,16 +474,14 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
           overflow: TextOverflow.ellipsis,
         ),
         
-        SizedBox(height: 4.h),
-        
         // Лейбл
         Text(
           label,
           style: TextStyle(
-            fontSize: 13.sp, // Увеличили размер
+            fontSize: 13.sp, // Оптимальный размер
             color: Colors.white.withOpacity(0.9),
             fontWeight: FontWeight.w600,
-            height: 1.2,
+            height: 1.1, // Единая высота строки
           ),
           textAlign: TextAlign.center,
           maxLines: 1,
@@ -491,15 +492,15 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
   }
 
   Widget _buildStatsGrid() {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 8.w), // Добавляем боковые отступы
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h), // Эталонные отступы
       child: GridView.count(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         crossAxisCount: 2,
-        mainAxisSpacing: 28.h, // Увеличили отступы между карточками
-        crossAxisSpacing: 28.w,
-        childAspectRatio: 1.2, // Уменьшили для большей высоты карточек
+        mainAxisSpacing: 16.h, // Эталонные отступы между карточками
+        crossAxisSpacing: 16.w,
+        // childAspectRatio убираем - теперь AspectRatio внутри карточки
         children: [
           _buildStatCard(
             Icons.analytics_rounded,
@@ -532,84 +533,84 @@ class _ProfilePageState extends State<ProfilePage> with TickerProviderStateMixin
   }
 
   Widget _buildStatCard(IconData icon, String value, String label, Color color, {bool isHighlighted = false}) {
-    return Container(
-      padding: EdgeInsets.all(20.w), // Увеличили padding
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24.r), // Более скруглённые углы
-        border: isHighlighted ? Border.all(
-          color: color.withOpacity(0.6),
-          width: 2.5,
-        ) : null,
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(isHighlighted ? 0.15 : 0.08),
-            blurRadius: isHighlighted ? 25 : 20,
-            offset: const Offset(0, 8),
-            spreadRadius: isHighlighted ? 3 : 2,
-          ),
-          BoxShadow(
-            color: color.withOpacity(isHighlighted ? 0.08 : 0.05),
-            blurRadius: isHighlighted ? 50 : 40,
-            offset: const Offset(0, 16),
-            spreadRadius: isHighlighted ? 2 : 1,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Равномерное распределение
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Иконка с адаптивным размером
-          Container(
-            padding: EdgeInsets.all(14.w),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15), // Увеличили opacity
-              borderRadius: BorderRadius.circular(18.r),
-              border: Border.all(
-                color: color.withOpacity(0.3),
-                width: 1.5,
+    return AspectRatio(
+      aspectRatio: 1.2, // Одинаковая высота на всех девайсах
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r), // Единый радиус с верхним блоком
+          border: isHighlighted ? Border.all(
+            color: color.withOpacity(0.6),
+            width: 1.2,
+          ) : null,
+          boxShadow: [
+            BoxShadow( // Мягкая широкая тень
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 24,
+              spreadRadius: 0,
+              offset: const Offset(0, 12),
+            ),
+            BoxShadow( // Плотная короткая тень
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              spreadRadius: -2,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h), // Оптимальные отступы
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Магия против overflow
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Иконка в подложке
+            Container(
+              padding: EdgeInsets.all(10.w), // Оптимальный padding
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(
+                  color: color.withOpacity(0.25),
+                  width: 1.0,
+                ),
+              ),
+              child: Icon(
+                icon,
+                color: color.withOpacity(0.9),
+                size: 24.sp, // Оптимальный размер
               ),
             ),
-            child: Icon(
-              icon,
-              color: color.withOpacity(0.9), // Темнее для лучшего контраста
-              size: 30.sp, // Увеличили размер иконки
-            ),
-          ),
-          
-          // Значение с адаптивным размером
-          Flexible(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: isHighlighted ? 24.sp : 22.sp, // Больше для выделенной
-                fontWeight: FontWeight.w900,
-                color: color.withOpacity(0.95), // Темнее для лучшего контраста
-                height: 1.0, // Уменьшили высоту строки
+            
+            // Значение с FittedBox для адаптивности
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: isHighlighted ? 22.sp : 20.sp, // 2pt больше для выделенной
+                  fontWeight: FontWeight.w700,
+                  height: 1.1, // Оптимальная высота строки
+                  color: const Color(0xFF111827), // Единый цвет для всех значений
+                ),
               ),
+            ),
+            
+            // Лейбл
+            Text(
+              label,
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          
-          // Лейбл с адаптивным размером
-          Flexible(
-            child: Text(
-              label,
               style: TextStyle(
-                fontSize: 14.sp, // Увеличили размер лейбла
-                color: const Color(0xFF374151), // Темнее для лучшего контраста
-                fontWeight: FontWeight.w700, // Жирнее
+                fontSize: 13.sp, // Оптимальный размер
+                color: const Color(0xFF6B7280), // Единый цвет для всех лейблов
                 height: 1.1, // Оптимальная высота строки
+                fontWeight: FontWeight.w500,
               ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
