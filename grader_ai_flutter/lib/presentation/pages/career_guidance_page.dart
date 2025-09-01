@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:provider/provider.dart';
 import '../widgets/animated_background.dart';
 import '../../shared/widgets/creative_buttons.dart';
 import '../../shared/themes/app_colors.dart';
@@ -9,6 +11,9 @@ import '../../shared/themes/app_animations.dart';
 import '../widgets/career_test_section.dart';
 import '../widgets/career_results_section.dart';
 import '../widgets/career_recommendations_section.dart';
+import 'professions_swipe_screen.dart';
+import '../../core/models/profession.dart';
+import '../../core/controllers/swipe_deck_controller.dart';
 
 class CareerGuidancePage extends StatefulWidget {
   const CareerGuidancePage({super.key});
@@ -194,6 +199,8 @@ class _CareerGuidancePageState extends State<CareerGuidancePage>
                         result: _testResult!,
                         onRetakeTest: _onRetakeTest,
                       ),
+                      const SizedBox(height: 24),
+                      _buildSwipeProfessionsSection(),
                       const SizedBox(height: 24),
                       CareerRecommendationsSection(
                         result: _testResult!,
@@ -445,6 +452,339 @@ class _CareerGuidancePageState extends State<CareerGuidancePage>
         ],
       ),
     );
+  }
+
+  Widget _buildSwipeProfessionsSection() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 24.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '🔥 Swipe Your Perfect Match',
+            style: AppTypography.headlineSmall.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          
+          SizedBox(height: 12.h),
+          
+          Text(
+            'Discover careers in a fun, Tinder-like experience. Swipe right on professions that excite you!',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          
+          SizedBox(height: 20.h),
+          
+          // Swipe CTA Card
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(24.w),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF3B82F6),
+                  Color(0xFF1D4ED8),
+                  Color(0xFF1E40AF),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20.r),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF3B82F6).withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Swipe animation preview
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildSwipeIcon(Icons.thumb_down_rounded, const Color(0xFFEF4444)),
+                    SizedBox(width: 20.w),
+                    Container(
+                      width: 60.w,
+                      height: 80.h,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.work_rounded,
+                        color: Colors.white,
+                        size: 32.sp,
+                      ),
+                    ),
+                    SizedBox(width: 20.w),
+                    _buildSwipeIcon(Icons.favorite_rounded, const Color(0xFF10B981)),
+                  ],
+                ),
+                
+                SizedBox(height: 20.h),
+                
+                Text(
+                  'Interactive Career Discovery',
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                
+                SizedBox(height: 8.h),
+                
+                Text(
+                  'Swipe through personalized career matches based on your assessment results',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: Colors.white.withOpacity(0.9),
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                SizedBox(height: 20.h),
+                
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _launchSwipeExperience,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF3B82F6),
+                      padding: EdgeInsets.symmetric(vertical: 16.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16.r),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.swipe_rounded,
+                          size: 20.sp,
+                        ),
+                        SizedBox(width: 8.w),
+                        Text(
+                          'Start Swiping Careers',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwipeIcon(IconData icon, Color color) {
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Icon(
+        icon,
+        color: color,
+        size: 20.sp,
+      ),
+    );
+  }
+
+  void _launchSwipeExperience() {
+    // Generate professions based on test results
+    final professions = _generatePersonalizedProfessions();
+    
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            ChangeNotifierProvider(
+              create: (_) => SwipeDeckController(professions)..loadSavedSession(),
+              child: const ProfessionsSwipeScreen(),
+            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: animation.drive(
+              Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                  .chain(CurveTween(curve: Curves.easeOutCubic)),
+            ),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  List<Profession> _generatePersonalizedProfessions() {
+    // Generate professions based on career test results
+    return [
+      Profession(
+        id: 'software_engineer',
+        title: 'Software Engineer',
+        subtitle: 'Build innovative software solutions',
+        matchLabel: '92% Match',
+        matchPercentage: 0.92,
+        skills: ['Programming', 'Problem Solving', 'Algorithms', 'Team Work'],
+        education: "Bachelor's in Computer Science",
+        salaryRange: '\$70,000 - \$150,000',
+        pros: ['High demand', 'Remote work options', 'Creative problem solving'],
+        cons: ['Long hours during deadlines', 'Continuous learning required'],
+        heroImage: 'assets/images/careers/software_engineer.jpg',
+        category: 'Technical',
+        actionableAdvice: [
+          '💻 Start with a free coding course on Coursera or Udemy',
+          '🔧 Build a portfolio with 3-5 personal projects',
+          '📚 Learn a popular programming language like Python or JavaScript',
+          '🤝 Join developer communities on GitHub and Stack Overflow',
+          '🎯 Apply for internships or entry-level positions',
+        ],
+        ctaLinks: {
+          'jobs': 'https://stackoverflow.com/jobs',
+          'courses': 'https://coursera.org/computer-science',
+          'mentorship': 'https://mentorcruise.com',
+        },
+        priority: 10,
+      ),
+      
+      Profession(
+        id: 'data_scientist',
+        title: 'Data Scientist',
+        subtitle: 'Extract insights from complex data',
+        matchLabel: '89% Match',
+        matchPercentage: 0.89,
+        skills: ['Python', 'Statistics', 'Machine Learning', 'SQL'],
+        education: "Master's in Data Science or related field",
+        salaryRange: '\$80,000 - \$160,000',
+        pros: ['High growth field', 'Intellectual challenges', 'Impact on business'],
+        cons: ['Requires advanced math', 'Data can be messy'],
+        heroImage: 'assets/images/careers/data_scientist.jpg',
+        category: 'Technical',
+        actionableAdvice: [
+          '📊 Learn Python and R for data analysis',
+          '🧮 Study statistics and probability theory',
+          '🤖 Take a machine learning course',
+          '💾 Practice with real datasets on Kaggle',
+          '📈 Build a data science portfolio',
+        ],
+        ctaLinks: {
+          'jobs': 'https://kaggle.com/jobs',
+          'courses': 'https://coursera.org/data-science',
+          'mentorship': 'https://adplist.org',
+        },
+        priority: 9,
+      ),
+      
+      Profession(
+        id: 'ux_designer',
+        title: 'UX Designer',
+        subtitle: 'Create intuitive user experiences',
+        matchLabel: '85% Match',
+        matchPercentage: 0.85,
+        skills: ['Design Thinking', 'Prototyping', 'User Research', 'Figma'],
+        education: "Bachelor's in Design or related field",
+        salaryRange: '\$60,000 - \$120,000',
+        pros: ['Creative work', 'User impact', 'Growing field'],
+        cons: ['Subjective feedback', 'Tight deadlines'],
+        heroImage: 'assets/images/careers/ux_designer.jpg',
+        category: 'Creative',
+        actionableAdvice: [
+          '🎨 Learn design tools like Figma and Sketch',
+          '🔍 Study user research methodologies',
+          '📱 Create UI/UX case studies for your portfolio',
+          '👥 Practice with real user testing',
+          '🏆 Participate in design challenges',
+        ],
+        ctaLinks: {
+          'jobs': 'https://dribbble.com/jobs',
+          'courses': 'https://coursera.org/ux-design',
+          'mentorship': 'https://adplist.org',
+        },
+        priority: 8,
+      ),
+      
+      Profession(
+        id: 'product_manager',
+        title: 'Product Manager',
+        subtitle: 'Drive product strategy and execution',
+        matchLabel: '82% Match',
+        matchPercentage: 0.82,
+        skills: ['Strategy', 'Analytics', 'Communication', 'Leadership'],
+        education: "Bachelor's in Business or related field",
+        salaryRange: '\$90,000 - \$180,000',
+        pros: ['Strategic thinking', 'Cross-functional work', 'High impact'],
+        cons: ['High pressure', 'Balancing stakeholders'],
+        heroImage: 'assets/images/careers/product_manager.jpg',
+        category: 'Business',
+        actionableAdvice: [
+          '📊 Learn product analytics tools',
+          '🚀 Study successful product launches',
+          '🤝 Develop stakeholder management skills',
+          '📝 Practice writing product requirements',
+          '💡 Work on a personal product project',
+        ],
+        ctaLinks: {
+          'jobs': 'https://productmanagerhq.com/jobs',
+          'courses': 'https://coursera.org/product-management',
+          'mentorship': 'https://mentorcruise.com',
+        },
+        priority: 7,
+      ),
+      
+      Profession(
+        id: 'marketing_specialist',
+        title: 'Digital Marketing Specialist',
+        subtitle: 'Drive growth through digital channels',
+        matchLabel: '78% Match',
+        matchPercentage: 0.78,
+        skills: ['SEO', 'Social Media', 'Analytics', 'Content Creation'],
+        education: "Bachelor's in Marketing or related field",
+        salaryRange: '\$45,000 - \$90,000',
+        pros: ['Creative campaigns', 'Measurable results', 'Diverse channels'],
+        cons: ['Algorithm changes', 'Constant adaptation needed'],
+        heroImage: 'assets/images/careers/marketing_specialist.jpg',
+        category: 'Business',
+        actionableAdvice: [
+          '📈 Get Google Analytics certification',
+          '📱 Master social media advertising',
+          '✍️ Create a content marketing blog',
+          '🎯 Run A/B tests on campaigns',
+          '📊 Learn marketing automation tools',
+        ],
+        ctaLinks: {
+          'jobs': 'https://marketingjobs.com',
+          'courses': 'https://coursera.org/digital-marketing',
+          'mentorship': 'https://growthmentor.com',
+        },
+        priority: 6,
+      ),
+    ];
   }
 
   Widget _buildErrorSection() {
