@@ -15,7 +15,7 @@ class AppGradients {
     end: Alignment.bottomCenter,
   );
 
-  static const LinearGradient primaryRadial = RadialGradient(
+  static const RadialGradient primaryRadial = RadialGradient(
     colors: [AppColors.primaryLight, AppColors.primary],
     center: Alignment.center,
     radius: 1.0,

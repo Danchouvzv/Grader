@@ -288,6 +288,12 @@ class ProfileService {
         theme: 'system',
         autoSave: true,
         sessionReminderMinutes: 30,
+        soundEnabled: true,
+        reminderHour: 9,
+        darkMode: false,
+        preferredLanguage: 'en',
+        audioQuality: 'high',
+        reminderDays: ['monday', 'wednesday', 'friday'],
       ),
       recentSessions: [
         LearningSession(

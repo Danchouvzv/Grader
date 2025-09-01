@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 enum SwipeAction { like, dislike, superlike }
 
 class Profession {

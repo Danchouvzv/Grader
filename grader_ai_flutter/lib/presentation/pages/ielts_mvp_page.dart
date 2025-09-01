@@ -63,6 +63,7 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
   String? _audioPath;
   String? _audioFileName;
   String? _duration;
+  int _recordingSeconds = 0;
   IeltsResult? _result;
   String? _error;
   late IeltsSpeakingSession _speakingSession;
@@ -145,6 +146,7 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
       }
       setState(() {
         seconds++;
+        _recordingSeconds = seconds;
         _duration = '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
       });
     });

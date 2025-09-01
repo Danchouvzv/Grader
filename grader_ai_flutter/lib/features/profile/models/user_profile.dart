@@ -213,6 +213,12 @@ class UserSettings {
   final String theme;
   final bool autoSave;
   final int sessionReminderMinutes;
+  final bool soundEnabled;
+  final int reminderHour;
+  final bool darkMode;
+  final String preferredLanguage;
+  final String audioQuality;
+  final List<String> reminderDays;
 
   UserSettings({
     required this.notificationsEnabled,
@@ -222,6 +228,12 @@ class UserSettings {
     required this.theme,
     required this.autoSave,
     required this.sessionReminderMinutes,
+    required this.soundEnabled,
+    required this.reminderHour,
+    required this.darkMode,
+    required this.preferredLanguage,
+    required this.audioQuality,
+    required this.reminderDays,
   });
 
   factory UserSettings.fromJson(Map<String, dynamic> json) {
@@ -233,6 +245,12 @@ class UserSettings {
       theme: json['theme'] ?? 'system',
       autoSave: json['autoSave'] ?? true,
       sessionReminderMinutes: json['sessionReminderMinutes'] ?? 30,
+      soundEnabled: json['soundEnabled'] ?? true,
+      reminderHour: json['reminderHour'] ?? 9,
+      darkMode: json['darkMode'] ?? false,
+      preferredLanguage: json['preferredLanguage'] ?? 'en',
+      audioQuality: json['audioQuality'] ?? 'high',
+      reminderDays: List<String>.from(json['reminderDays'] ?? ['monday', 'wednesday', 'friday']),
     );
   }
 
@@ -245,7 +263,45 @@ class UserSettings {
       'theme': theme,
       'autoSave': autoSave,
       'sessionReminderMinutes': sessionReminderMinutes,
+      'soundEnabled': soundEnabled,
+      'reminderHour': reminderHour,
+      'darkMode': darkMode,
+      'preferredLanguage': preferredLanguage,
+      'audioQuality': audioQuality,
+      'reminderDays': reminderDays,
     };
+  }
+
+  UserSettings copyWith({
+    bool? notificationsEnabled,
+    bool? emailNotifications,
+    bool? pushNotifications,
+    String? language,
+    String? theme,
+    bool? autoSave,
+    int? sessionReminderMinutes,
+    bool? soundEnabled,
+    int? reminderHour,
+    bool? darkMode,
+    String? preferredLanguage,
+    String? audioQuality,
+    List<String>? reminderDays,
+  }) {
+    return UserSettings(
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      emailNotifications: emailNotifications ?? this.emailNotifications,
+      pushNotifications: pushNotifications ?? this.pushNotifications,
+      language: language ?? this.language,
+      theme: theme ?? this.theme,
+      autoSave: autoSave ?? this.autoSave,
+      sessionReminderMinutes: sessionReminderMinutes ?? this.sessionReminderMinutes,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      reminderHour: reminderHour ?? this.reminderHour,
+      darkMode: darkMode ?? this.darkMode,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
+      audioQuality: audioQuality ?? this.audioQuality,
+      reminderDays: reminderDays ?? this.reminderDays,
+    );
   }
 }
 

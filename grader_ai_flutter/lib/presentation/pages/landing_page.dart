@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../widgets/animated_background.dart';
-import '../widgets/creative_buttons.dart';
-import 'auth/login_page.dart';
-import 'auth/register_page.dart';
+import 'sign_in_page.dart';
+import 'sign_up_page.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -257,21 +256,54 @@ class _LandingPageState extends State<LandingPage>
                       SizedBox(height: 20.h),
 
                       // Primary CTA button
-                      CreativeButtons.actionButton(
-                        text: 'Get Started',
-                        icon: Icons.rocket_launch,
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const RegisterPage(),
-                            ),
-                          );
-                        },
-                        backgroundColor: const Color(0xFFE53935),
+                      Container(
                         width: double.infinity,
                         height: 60,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE53935),
+                          borderRadius: BorderRadius.circular(20.r),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFE53935).withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20.r),
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SignUpPage(),
+                                ),
+                              );
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.rocket_launch,
+                                  color: Colors.white,
+                                  size: 24.sp,
+                                ),
+                                SizedBox(width: 12.w),
+                                Text(
+                                  'Get Started',
+                                  style: TextStyle(
+                                    fontSize: 18.sp,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
 
                       SizedBox(height: 16.h),
@@ -297,7 +329,7 @@ class _LandingPageState extends State<LandingPage>
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const LoginPage(),
+                                  builder: (context) => const SignInPage(),
                                 ),
                               );
                             },

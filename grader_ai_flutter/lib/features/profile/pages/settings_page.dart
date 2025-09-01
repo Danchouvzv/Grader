@@ -613,6 +613,12 @@ extension UserSettingsExtension on UserSettings {
     String? theme,
     bool? autoSave,
     int? sessionReminderMinutes,
+    bool? soundEnabled,
+    int? reminderHour,
+    bool? darkMode,
+    String? preferredLanguage,
+    String? audioQuality,
+    List<String>? reminderDays,
   }) {
     return UserSettings(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -622,6 +628,12 @@ extension UserSettingsExtension on UserSettings {
       theme: theme ?? this.theme,
       autoSave: autoSave ?? this.autoSave,
       sessionReminderMinutes: sessionReminderMinutes ?? this.sessionReminderMinutes,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      reminderHour: reminderHour ?? this.reminderHour,
+      darkMode: darkMode ?? this.darkMode,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
+      audioQuality: audioQuality ?? this.audioQuality,
+      reminderDays: reminderDays ?? this.reminderDays,
     );
   }
 }
