@@ -1,181 +1,365 @@
-# IELTS Speaking Test App
+# 🎯 Grader.AI - IELTS Speaking Assistant
 
-A Flutter application for IELTS speaking test practice with AI-powered assessment using OpenAI's Whisper and GPT-4.
+<div align="center">
 
-## Features
+![Grader.AI Logo](https://img.shields.io/badge/Grader.AI-FF6B6B?style=for-the-badge&logo=flutter&logoColor=white)
 
-- 🎤 **Audio Recording**: Record your speaking responses
-- 🗣️ **AI Transcription**: Uses OpenAI Whisper for accurate speech-to-text
-- 📊 **AI Assessment**: GPT-4 powered IELTS band scoring and feedback
-- 📱 **Cross-Platform**: Works on iOS, Android, and Web
-- 🔄 **Real-time Processing**: Immediate feedback and results
+**Your Personal IELTS Speaking Coach Powered by AI** 🤖✨
 
-## Quick Start
+[![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=flat&logo=firebase&logoColor=black)](https://firebase.google.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat&logo=openai&logoColor=white)](https://openai.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-### 1. Prerequisites
+</div>
 
-- Flutter SDK (latest stable version)
-- OpenAI API key
-- Optional: Google Cloud Project ID for Speech-to-Text
+---
 
-### 2. Setup API Keys
+## 🌟 What is Grader.AI?
 
-#### Method 1: Environment Variables (Recommended)
-```bash
-export OPENAI_API_KEY="sk-your-actual-key-here"
-export GOOGLE_CLOUD_PROJECT_ID="your-project-id"
-export BACKEND_API_URL="http://localhost:8000"
+Grader.AI is a revolutionary **IELTS Speaking preparation app** that uses advanced AI to provide personalized feedback, practice sessions, and progress tracking. Whether you're aiming for Band 6 or Band 9, our AI coach will help you achieve your goals! 🎯
+
+### 🚀 Key Features
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| 🎤 **AI-Powered Speaking Practice** | Real-time speech analysis with detailed feedback | ✅ Active |
+| 📊 **Progress Tracking** | Weekly progress charts and achievement system | ✅ Active |
+| 🏆 **Achievement System** | Unlock badges as you improve | ✅ Active |
+| 📱 **Cross-Platform** | iOS, Android, macOS, Windows support | ✅ Active |
+| 🔥 **Firebase Integration** | Real-time data sync and user management | ✅ Active |
+| 💳 **In-App Purchases** | Premium features and subscription plans | ✅ Active |
+| 🎨 **Beautiful UI** | Modern, professional design with animations | ✅ Active |
+
+---
+
+## 🎮 How It Works
+
+```mermaid
+graph TD
+    A[🎤 User Speaks] --> B[🤖 AI Analysis]
+    B --> C[📊 Detailed Feedback]
+    C --> D[📈 Progress Tracking]
+    D --> E[🏆 Achievement Unlock]
+    E --> F[🎯 Personalized Tips]
+    F --> A
 ```
 
-#### Method 2: Use the provided script
-```bash
-# Make script executable
-chmod +x run_with_api_keys.sh
+### 📱 User Journey
 
-# Run with your API key
-OPENAI_API_KEY="sk-your-key-here" ./run_with_api_keys.sh
-```
+1. **🎯 Set Your Target Band** - Choose your IELTS goal (6.0 to 9.0)
+2. **🎤 Practice Speaking** - Answer AI-generated questions
+3. **📊 Get Instant Feedback** - Receive detailed analysis on:
+   - **Fluency & Coherence** - Speaking smoothly and logically
+   - **Lexical Resource** - Vocabulary usage and variety
+   - **Grammar** - Sentence structure and accuracy
+   - **Pronunciation** - Clarity and intonation
+4. **📈 Track Progress** - Monitor your improvement over time
+5. **🏆 Unlock Achievements** - Earn badges for milestones
+6. **🎯 Get Personalized Tips** - AI-powered recommendations
 
-#### Method 3: Build arguments
-```bash
-flutter run --dart-define=OPENAI_API_KEY="sk-your-key-here"
-```
+---
 
-### 3. Run the App
+## 🛠️ Tech Stack
 
-```bash
-# Install dependencies
-flutter pub get
+### Frontend
+- **Flutter** - Cross-platform mobile development
+- **Dart** - Programming language
+- **ScreenUtil** - Responsive design
+- **GetX** - State management
 
-# Run the app
-flutter run
-```
+### Backend & Services
+- **Firebase** - Authentication, Firestore, Analytics
+- **OpenAI GPT-4** - AI analysis and feedback
+- **Google Play Billing** - Android in-app purchases
+- **Apple In-App Purchase** - iOS subscriptions
 
-## Project Structure
+### Design & UI
+- **Custom Design System** - Consistent UI components
+- **Glassmorphism** - Modern visual effects
+- **Animations** - Smooth user interactions
+- **Responsive Layout** - Works on all screen sizes
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Flutter SDK** (3.0.0 or higher)
+- **Dart SDK** (2.17.0 or higher)
+- **Firebase CLI** (for configuration)
+- **Xcode** (for iOS development)
+- **Android Studio** (for Android development)
+
+### 📦 Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/Danchouvzv/Grader.git
+   cd grader_ai_flutter
+   ```
+
+2. **Install dependencies**
+   ```bash
+   flutter pub get
+   ```
+
+3. **Configure Firebase**
+   ```bash
+   # Add your Firebase configuration files:
+   # - android/app/google-services.json
+   # - ios/Runner/GoogleService-Info.plist
+   # - macos/Runner/GoogleService-Info.plist
+   ```
+
+4. **Set up API Keys**
+   ```bash
+   # Create .env file with your API keys:
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
+
+5. **Run the app**
+   ```bash
+   flutter run
+   ```
+
+### 🔧 Configuration
+
+#### Firebase Setup
+1. Create a new Firebase project
+2. Enable Authentication, Firestore, and Analytics
+3. Download configuration files to respective directories
+4. Update `firebase_options.dart` with your project settings
+
+#### OpenAI Setup
+1. Get your API key from [OpenAI Platform](https://platform.openai.com/)
+2. Add it to your `.env` file
+3. The app will automatically use it for AI analysis
+
+---
+
+## 📱 App Structure
 
 ```
 lib/
-├── core/                    # Core services and configuration
-│   ├── config/             # API configuration
-│   ├── services/           # Business logic services
-│   └── openai_service.dart # OpenAI integration
-├── features/               # Feature modules
-│   ├── ielts/             # IELTS test functionality
-│   └── career/            # Career guidance features
-├── presentation/           # UI components
-│   ├── pages/             # Screen implementations
-│   └── widgets/           # Reusable UI components
-└── shared/                 # Shared resources
-    └── themes/            # App styling and themes
+├── 🎯 core/                    # Core business logic
+│   ├── models/                # Data models
+│   ├── services/              # Business services
+│   └── controllers/           # State management
+├── 🎨 presentation/            # UI layer
+│   ├── pages/                 # App screens
+│   ├── widgets/               # Reusable components
+│   └── themes/                # Design system
+├── 🔥 features/               # Feature modules
+│   └── ielts/                 # IELTS-specific features
+└── 🛠️ shared/                # Shared utilities
+    ├── themes/                # Design system
+    └── widgets/               # Common widgets
 ```
 
-## Configuration
+---
 
-### API Keys
+## 🎨 Design System
 
-The app uses environment variables for secure API key management:
+Our app uses a **centralized design system** for consistent UI:
 
-- **OPENAI_API_KEY**: Required for transcription and assessment
-- **GOOGLE_CLOUD_PROJECT_ID**: Optional for Speech-to-Text
-- **BACKEND_API_URL**: Backend service URL (defaults to localhost:8000)
+### 🎨 Color Palette
+- **Primary Blue** - `#3B82F6` (Trust, Professional)
+- **Accent Red** - `#F43F5E` (Energy, Action)
+- **Success Green** - `#10B981` (Progress, Achievement)
+- **Background** - `#FFFFFF` (Clean, Minimal)
 
-### Security
+### 📐 Spacing Scale
+- **4px** - Micro spacing
+- **8px** - Small spacing
+- **16px** - Medium spacing
+- **24px** - Large spacing
+- **32px** - Extra large spacing
 
-- API keys are never committed to version control
-- Keys are loaded at build time only
-- Use different keys for development and production
+### 🔤 Typography
+- **Headlines** - Bold, impactful
+- **Body Text** - Readable, comfortable
+- **Captions** - Subtle, informative
 
-## Development
+---
+
+## 🔥 Features Deep Dive
+
+### 🎤 AI Speaking Analysis
+
+Our AI analyzes your speech across four key IELTS criteria:
+
+```dart
+// Example feedback structure
+{
+  "fluency_coherence": 7.5,
+  "lexical_resource": 6.8,
+  "grammar": 7.2,
+  "pronunciation": 6.9,
+  "overall_band": 7.1,
+  "detailed_feedback": "Great job! Your fluency is excellent...",
+  "improvement_tips": ["Work on vocabulary variety", "Practice complex sentences"]
+}
+```
+
+### 📊 Progress Tracking
+
+- **Weekly Progress Charts** - Visual representation of improvement
+- **Session History** - Track all your practice sessions
+- **Band Score Trends** - See your progress over time
+- **Weak Area Identification** - AI identifies areas for improvement
+
+### 🏆 Achievement System
+
+Unlock achievements as you progress:
+- 🎯 **First Steps** - Complete your first session
+- 🔥 **Streak Master** - Practice for 7 days straight
+- 📈 **Improvement** - Increase your band score
+- 🎖️ **Perfectionist** - Achieve Band 9.0
+
+---
+
+## 💳 Subscription Plans
+
+| Plan | Price | Features |
+|------|-------|----------|
+| **Free** | $0 | Basic practice sessions, Limited feedback |
+| **Premium Monthly** | $9.99 | Unlimited sessions, Detailed AI analysis, Progress tracking |
+| **Premium Yearly** | $79.99 | All Premium features + Priority support |
+| **Lifetime** | $199.99 | One-time payment, Lifetime access |
+
+---
+
+## 🧪 Testing
 
 ### Running Tests
 ```bash
+# Unit tests
 flutter test
+
+# Integration tests
+flutter test integration_test/
+
+# Coverage report
+flutter test --coverage
 ```
 
-### Code Analysis
-```bash
-flutter analyze
-```
+### Test Coverage
+- **Unit Tests** - Core business logic
+- **Widget Tests** - UI components
+- **Integration Tests** - End-to-end flows
 
-### Building for Production
+---
+
+## 📦 Building for Production
+
+### Android
 ```bash
-# Android
 flutter build apk --release
-
-# iOS
-flutter build ios --release
-
-# Web
-flutter build web
+flutter build appbundle --release
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **"API Key not configured"**
-   - Check environment variables are set
-   - Verify build arguments are correct
-   - Restart your IDE/terminal
-
-2. **"Invalid API Key"**
-   - Verify the key format (starts with `sk-`)
-   - Check if the key is active in OpenAI dashboard
-   - Ensure you have sufficient credits
-
-3. **Audio Recording Issues**
-   - Check microphone permissions
-   - Verify audio format compatibility
-   - Check device audio settings
-
-## iOS Release Setup
-
-Для подготовки iOS-версии к TestFlight и App Store:
-
-### Быстрый старт
+### iOS
 ```bash
-# Установка зависимостей
-xcode-select --install || true
-brew install cocoapods || true
-gem install bundler --no-document
-
-# Настройка проекта
-cd ios && bundle install && cd ..
-flutter clean && flutter pub get
-
-# Проверка окружения
-./scripts/ios.sh doctor
-
-# В Xcode: выбрать Team, включить Automatic signing
-# Product → Archive (проверить сборку)
-
-# Загрузка в TestFlight
-./scripts/ios.sh beta
+flutter build ios --release
 ```
 
-### Подробная инструкция
-См. [README_IOS.md](README_IOS.md) для детальной настройки в Xcode.
+### macOS
+```bash
+flutter build macos --release
+```
 
-### Автоматизация
-- GitHub Actions: автоматическая сборка по тегам `v*`
-- Fastlane: локальная сборка и загрузка
-- Скрипты: `./scripts/ios.sh [doctor|pods|build|beta]`
+### Windows
+```bash
+flutter build windows --release
+```
 
-## Contributing
+---
 
+## 🚀 Deployment
+
+### Google Play Store
+1. Build release APK/AAB
+2. Upload to Play Console
+3. Configure store listing
+4. Submit for review
+
+### Apple App Store
+1. Build iOS app
+2. Upload to App Store Connect
+3. Configure app information
+4. Submit for review
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+### 🐛 Bug Reports
+- Use GitHub Issues
+- Provide detailed reproduction steps
+- Include device/OS information
+
+### 💡 Feature Requests
+- Describe the feature clearly
+- Explain the use case
+- Consider implementation complexity
+
+### 🔧 Code Contributions
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
 
-## License
+### 📝 Code Style
+- Follow Dart/Flutter conventions
+- Use meaningful variable names
+- Add comments for complex logic
+- Write tests for new features
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+---
 
-## Support
+## 📄 License
 
-For issues and questions:
-- Check the troubleshooting section
-- Review the API_SETUP.md file
-- Open an issue on GitHub
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **OpenAI** - For providing the AI analysis capabilities
+- **Firebase** - For backend services and real-time sync
+- **Flutter Team** - For the amazing cross-platform framework
+- **IELTS** - For the comprehensive speaking assessment criteria
+
+---
+
+## 📞 Support
+
+Need help? We're here for you!
+
+- 📧 **Email** - support@graderai.com
+- 💬 **Discord** - [Join our community](https://discord.gg/graderai)
+- 📱 **In-App** - Use the feedback form
+- 🐛 **Issues** - [GitHub Issues](https://github.com/Danchouvzv/Grader/issues)
+
+---
+
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Danchouvzv/Grader&type=Date)](https://star-history.com/#Danchouvzv/Grader&Date)
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the Grader.AI Team**
+
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Danchouvzv/Grader)
+[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/graderai)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/company/graderai)
+
+</div>
