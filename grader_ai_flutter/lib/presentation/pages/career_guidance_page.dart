@@ -625,7 +625,7 @@ class _CareerGuidancePageState extends State<CareerGuidancePage>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             ChangeNotifierProvider(
-              create: (_) => SwipeDeckController(professions)..loadSavedSession(),
+              create: (_) => SwipeDeckController(professions),
               child: const ProfessionsSwipeScreen(),
             ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {

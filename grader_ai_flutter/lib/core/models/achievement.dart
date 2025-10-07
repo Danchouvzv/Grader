@@ -6,6 +6,8 @@ class Achievement {
   final String description;
   final String icon;
   final DateTime unlockedAt;
+  final String? iconData; // Flutter IconData name
+  final String? colorHex; // Hex color for the achievement
 
   const Achievement({
     this.id,
@@ -15,6 +17,8 @@ class Achievement {
     required this.description,
     required this.icon,
     required this.unlockedAt,
+    this.iconData,
+    this.colorHex,
   });
 
   Achievement copyWith({
@@ -25,6 +29,8 @@ class Achievement {
     String? description,
     String? icon,
     DateTime? unlockedAt,
+    String? iconData,
+    String? colorHex,
   }) {
     return Achievement(
       id: id ?? this.id,
@@ -34,6 +40,8 @@ class Achievement {
       description: description ?? this.description,
       icon: icon ?? this.icon,
       unlockedAt: unlockedAt ?? this.unlockedAt,
+      iconData: iconData ?? this.iconData,
+      colorHex: colorHex ?? this.colorHex,
     );
   }
 
@@ -46,6 +54,8 @@ class Achievement {
       'description': description,
       'icon': icon,
       'unlocked_at': unlockedAt.toIso8601String(),
+      'icon_data': iconData,
+      'color_hex': colorHex,
     };
   }
 
@@ -58,6 +68,8 @@ class Achievement {
       description: map['description'] ?? '',
       icon: map['icon'] ?? '',
       unlockedAt: DateTime.parse(map['unlocked_at']),
+      iconData: map['icon_data'],
+      colorHex: map['color_hex'],
     );
   }
 
@@ -72,6 +84,8 @@ class Achievement {
         description: 'Complete your first IELTS practice session',
         icon: '🎯',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.flag_rounded',
+        colorHex: '#10B981',
       ),
       
       // Session milestones
@@ -82,6 +96,8 @@ class Achievement {
         description: 'Complete 5 practice sessions',
         icon: '🌟',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.star_rounded',
+        colorHex: '#F59E0B',
       ),
       Achievement(
         userId: userId,
@@ -90,6 +106,8 @@ class Achievement {
         description: 'Complete 10 practice sessions',
         icon: '📚',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.school_rounded',
+        colorHex: '#3B82F6',
       ),
       Achievement(
         userId: userId,
@@ -98,6 +116,8 @@ class Achievement {
         description: 'Complete 25 practice sessions',
         icon: '🎓',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.school_outlined',
+        colorHex: '#8B5CF6',
       ),
       Achievement(
         userId: userId,
@@ -106,6 +126,8 @@ class Achievement {
         description: 'Complete 50 practice sessions',
         icon: '⚔️',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.military_tech_rounded',
+        colorHex: '#EF4444',
       ),
       Achievement(
         userId: userId,
@@ -114,6 +136,8 @@ class Achievement {
         description: 'Complete 100 practice sessions',
         icon: '💯',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.emoji_events_rounded',
+        colorHex: '#F59E0B',
       ),
       
       // Streak achievements
@@ -124,6 +148,8 @@ class Achievement {
         description: 'Maintain a 3-day practice streak',
         icon: '🔥',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.local_fire_department_rounded',
+        colorHex: '#F97316',
       ),
       Achievement(
         userId: userId,
@@ -132,6 +158,8 @@ class Achievement {
         description: 'Maintain a 7-day practice streak',
         icon: '📅',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.calendar_today_rounded',
+        colorHex: '#EC4899',
       ),
       Achievement(
         userId: userId,
@@ -140,6 +168,8 @@ class Achievement {
         description: 'Maintain a 30-day practice streak',
         icon: '🏆',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.workspace_premium_rounded',
+        colorHex: '#F59E0B',
       ),
       
       // Band score achievements
@@ -150,6 +180,8 @@ class Achievement {
         description: 'Achieve Band 6.0 or higher',
         icon: '🎖️',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.workspace_premium_outlined',
+        colorHex: '#6B7280',
       ),
       Achievement(
         userId: userId,
@@ -158,6 +190,8 @@ class Achievement {
         description: 'Achieve Band 7.0 or higher',
         icon: '🥉',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.workspace_premium_rounded',
+        colorHex: '#CD7F32',
       ),
       Achievement(
         userId: userId,
@@ -166,6 +200,8 @@ class Achievement {
         description: 'Achieve Band 8.0 or higher',
         icon: '🥈',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.workspace_premium_rounded',
+        colorHex: '#C0C0C0',
       ),
       Achievement(
         userId: userId,
@@ -174,6 +210,8 @@ class Achievement {
         description: 'Achieve Band 9.0 - Perfect Score!',
         icon: '🥇',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.workspace_premium_rounded',
+        colorHex: '#FFD700',
       ),
       
       // Time-based achievements
@@ -184,6 +222,8 @@ class Achievement {
         description: 'Practice for over 1 hour total',
         icon: '⏰',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.access_time_rounded',
+        colorHex: '#06B6D4',
       ),
       Achievement(
         userId: userId,
@@ -192,6 +232,8 @@ class Achievement {
         description: 'Practice for over 5 hours total',
         icon: '⏳',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.timer_rounded',
+        colorHex: '#8B5CF6',
       ),
       Achievement(
         userId: userId,
@@ -200,6 +242,8 @@ class Achievement {
         description: 'Practice for over 10 hours total',
         icon: '🕐',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.schedule_rounded',
+        colorHex: '#10B981',
       ),
       
       // Special achievements
@@ -210,6 +254,8 @@ class Achievement {
         description: 'Practice all 3 IELTS Speaking parts',
         icon: '🎤',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.mic_rounded',
+        colorHex: '#EC4899',
       ),
       Achievement(
         userId: userId,
@@ -218,6 +264,8 @@ class Achievement {
         description: 'Improve your average band by 1.0 point',
         icon: '📈',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.trending_up_rounded',
+        colorHex: '#10B981',
       ),
       Achievement(
         userId: userId,
@@ -226,8 +274,16 @@ class Achievement {
         description: 'Score 8.0+ in all four skills in one session',
         icon: '💎',
         unlockedAt: DateTime.now(),
+        iconData: 'Icons.diamond_rounded',
+        colorHex: '#8B5CF6',
       ),
     ];
+  }
+
+  // Check if achievement is unlocked (unlockedAt is in the past)
+  bool get isUnlocked {
+    final now = DateTime.now();
+    return unlockedAt.isBefore(now) || unlockedAt.isAtSameMomentAs(now);
   }
 
   String get formattedDate {

@@ -2,6 +2,7 @@ import '../database/database_helper.dart';
 import '../models/user_profile.dart';
 import '../models/session_record.dart';
 import '../models/achievement.dart';
+import 'firestore_service.dart';
 
 class ProfileService {
   final DatabaseHelper _db = DatabaseHelper();
@@ -27,12 +28,62 @@ class ProfileService {
 
   // Get current user profile
   Future<UserProfile?> getCurrentProfile() async {
+    // First try to get from Firebase
+    final firebaseProfile = await FirestoreService.instance.getUserProfile();
+    if (firebaseProfile != null) {
+      // Sync Firebase data to local database
+      final localProfile = await _db.getFirstUserProfile();
+      if (localProfile != null) {
+        final updatedProfile = localProfile.copyWith(
+          name: firebaseProfile['fullName'] ?? localProfile.name,
+          email: firebaseProfile['email'] ?? localProfile.email,
+          avatarPath: firebaseProfile['avatarPath'] ?? localProfile.avatarPath,
+          updatedAt: DateTime.now(),
+        );
+        await _db.updateUserProfile(updatedProfile);
+        return updatedProfile;
+      }
+    }
+    
+    // Fallback to local database
     return await _db.getFirstUserProfile();
   }
 
   // Update profile
   Future<void> updateProfile(UserProfile profile) async {
     final updatedProfile = profile.copyWith(updatedAt: DateTime.now());
+    await _db.updateUserProfile(updatedProfile);
+  }
+
+  // Update profile with name and avatar
+  Future<void> updateProfileFields({required String name, String? avatarPath}) async {
+    // Update local database
+    final profile = await getCurrentProfile();
+    if (profile == null) return;
+
+    final updatedProfile = profile.copyWith(
+      name: name,
+      avatarPath: avatarPath,
+      updatedAt: DateTime.now(),
+    );
+    await _db.updateUserProfile(updatedProfile);
+
+    // Update Firebase
+    await FirestoreService.instance.updateUserProfile(
+      fullName: name,
+      avatarPath: avatarPath,
+    );
+  }
+
+  // Update target band
+  Future<void> updateTargetBand(double targetBand) async {
+    final profile = await getCurrentProfile();
+    if (profile == null) return;
+
+    final updatedProfile = profile.copyWith(
+      targetBand: targetBand,
+      updatedAt: DateTime.now(),
+    );
     await _db.updateUserProfile(updatedProfile);
   }
 
@@ -86,6 +137,14 @@ class ProfileService {
 
   // Get weekly progress
   Future<List<Map<String, dynamic>>> getWeeklyProgress(int userId) async {
+    try {
+      // Prefer Firestore if signed-in
+      final cloud = await FirestoreService.instance.fetchWeeklyProgress();
+      if (cloud.isNotEmpty) return cloud;
+    } catch (_) {
+      // ignore and fallback
+    }
+    // Fallback to local DB aggregation
     return await _db.getWeeklyProgress(userId);
   }
 
@@ -113,6 +172,11 @@ class ProfileService {
     final stats = await _db.getUserStats(userId);
     final existingAchievements = await _db.getAchievements(userId);
     final existingTypes = existingAchievements.map((a) => a.achievementType).toSet();
+
+    print('🏆 Checking achievements for user $userId');
+    print('   Total sessions: ${stats['totalSessions']}');
+    print('   Overall band: ${record.overallBand}');
+    print('   Existing achievements: ${existingTypes.length}');
 
     // Check for new achievements
     final achievementsToUnlock = <Achievement>[];
@@ -196,6 +260,13 @@ class ProfileService {
     // Unlock all new achievements
     for (final achievement in achievementsToUnlock) {
       await _db.insertAchievement(achievement);
+      print('🎉 Achievement unlocked: ${achievement.title}');
+    }
+    
+    if (achievementsToUnlock.isEmpty) {
+      print('   No new achievements this session');
+    } else {
+      print('✅ Unlocked ${achievementsToUnlock.length} achievements!');
     }
   }
 

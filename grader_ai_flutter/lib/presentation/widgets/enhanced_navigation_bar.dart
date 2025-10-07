@@ -89,7 +89,7 @@ class _EnhancedNavigationBarState extends State<EnhancedNavigationBar>
         borderRadius: BorderRadius.circular(24),
         boxShadow: AppColors.elevatedShadow,
         border: Border.all(
-          color: AppColors.primary.withOpacity(0.1),
+          color: const Color(0xFFEF4444).withOpacity(0.12),
           width: 1,
         ),
       ),
@@ -124,13 +124,13 @@ class _EnhancedNavigationBarState extends State<EnhancedNavigationBar>
                               height: 40,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? AppColors.primary
-                                    : AppColors.primary.withOpacity(0.1),
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFFEF4444).withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: isSelected
                                     ? [
                                         BoxShadow(
-                                          color: AppColors.primary.withOpacity(0.3),
+                                          color: const Color(0xFFEF4444).withOpacity(0.3),
                                           blurRadius: 8,
                                           offset: const Offset(0, 2),
                                         ),
@@ -151,7 +151,7 @@ class _EnhancedNavigationBarState extends State<EnhancedNavigationBar>
                               item.label,
                               style: AppTypography.labelSmall.copyWith(
                                 color: isSelected
-                                    ? AppColors.primary
+                                    ? const Color(0xFFEF4444)
                                     : AppColors.textTertiary,
                                 fontWeight: isSelected
                                     ? FontWeight.w600

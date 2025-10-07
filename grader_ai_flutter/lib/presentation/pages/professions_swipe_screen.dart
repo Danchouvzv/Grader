@@ -60,10 +60,8 @@ class _ProfessionsSwipeScreenState extends State<ProfessionsSwipeScreen>
       curve: Curves.elasticOut,
     ));
 
-    // Загружаем сохранённую сессию
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SwipeDeckController>().loadSavedSession();
-    });
+    // Начинаем со свежей сессии без автозагрузки сохранений,
+    // чтобы не попадать на ситуацию с пустой колодой из-за "viewed"
   }
 
   @override

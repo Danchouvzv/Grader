@@ -5,6 +5,12 @@ import '../../shared/themes/app_typography.dart';
 import '../widgets/enhanced_results_widget.dart';
 import '../widgets/animated_background.dart';
 import '../../features/ielts/domain/entities/ielts_result.dart';
+import '../../core/openai_service.dart';
+import '../../core/services/firestore_service.dart';
+import '../../core/config/api_config.dart';
+import '../../core/services/learning_progress_service.dart';
+import 'learning_insights_page.dart';
+import 'interactive_exercise_page.dart';
 
 class EnhancedIeltsResultsPage extends StatefulWidget {
   final IeltsResult assessment;
@@ -33,6 +39,13 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
   
   int _currentTab = 0;
   final PageController _pageController = PageController();
+  Map<String, dynamic>? _enhancedData;
+  bool _isEnhancing = false;
+  Map<String, dynamic>? _actionableTips;
+  bool _isGeneratingTips = false;
+  bool _tipsRequestedOnce = false;
+  Map<String, dynamic>? _coachPlan;
+  bool _isGeneratingCoachPlan = false;
 
   @override
   void initState() {
@@ -95,24 +108,47 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
       curve: Curves.easeInOut,
     );
     HapticFeedback.lightImpact();
+    if (index == 2) {
+      _ensureTipsLoaded();
+    }
   }
 
   void _onSaveResult() {
     HapticFeedback.mediumImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: Colors.white),
-            const SizedBox(width: 12),
-            Text('Result saved to your history'),
-          ],
+    FirestoreService.instance.saveIeltsResult(
+      overallBand: widget.assessment.overallBand,
+      fluency: widget.assessment.bands['fluency_coherence'] ?? 0.0,
+      lexical: widget.assessment.bands['lexical_resource'] ?? 0.0,
+      grammar: widget.assessment.bands['grammar'] ?? 0.0,
+      pronunciation: widget.assessment.bands['pronunciation'] ?? 0.0,
+      transcript: widget.transcript,
+      enhancedData: _enhancedData,
+      actionableTips: _actionableTips,
+    ).then((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: Colors.white),
+              const SizedBox(width: 12),
+              Text('Result saved to your history'),
+            ],
+          ),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+      );
+    }).catchError((e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save: $e'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    });
   }
 
   void _onShare() {
@@ -392,16 +428,35 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
         setState(() {
           _currentTab = index;
         });
+        if (index == 2) {
+          _ensureTipsLoaded();
+        }
       },
       children: [
         // Scores Tab
         SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: EnhancedResultsWidget(
-            result: widget.assessment,
-            onSaveResult: _onSaveResult,
-            onShare: _onShare,
-            onTryAgain: _onTryAgain,
+          child: Column(
+            children: [
+              EnhancedResultsWidget(
+                result: widget.assessment,
+                onSaveResult: _onSaveResult,
+                onShare: _onShare,
+                onTryAgain: _onTryAgain,
+              ),
+              
+              // Learning Insights Button - always show
+              const SizedBox(height: 32),
+              _buildLearningInsightsButton(),
+              
+              // Next Part Button (if needed) - moved to Scores tab
+              if (widget.showNextPartButton && widget.onNextPart != null) ...[
+                const SizedBox(height: 16),
+                _buildNextPartButton(),
+              ],
+              
+              const SizedBox(height: 40), // Bottom padding
+            ],
           ),
         ),
         
@@ -417,13 +472,6 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
           child: Column(
             children: [
               _buildTipsTab(),
-              
-              // Next Part Button (if needed)
-              if (widget.showNextPartButton && widget.onNextPart != null) ...[
-                const SizedBox(height: 32),
-                _buildNextPartButton(),
-              ],
-              
               const SizedBox(height: 40), // Bottom padding
             ],
           ),
@@ -526,7 +574,47 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
           ),
         ),
         
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+
+        // Enhance to Band 8 button
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _isEnhancing ? null : _onEnhancePressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: Icon(_isEnhancing ? Icons.hourglass_bottom_rounded : Icons.auto_fix_high_rounded),
+            label: Text(_isEnhancing ? 'Generating improved version…' : 'Generate Band 8 version'),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Generate Coach Plan button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isGeneratingCoachPlan ? null : _onGenerateCoachPlan,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: BorderSide(color: AppColors.primary.withOpacity(0.6), width: 1.2),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: Icon(_isGeneratingCoachPlan ? Icons.hourglass_empty_rounded : Icons.flag_rounded),
+            label: Text(_isGeneratingCoachPlan ? 'Preparing coach plan…' : 'Generate 7‑day Coach Plan'),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        if (_enhancedData != null) _buildEnhancedSection(),
+
+        const SizedBox(height: 16),
         
         // Stats
         Row(
@@ -587,6 +675,330 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
         ],
       ),
     );
+  }
+
+  Future<void> _onEnhancePressed() async {
+    if (widget.transcript.trim().isEmpty) return;
+    setState(() {
+      _isEnhancing = true;
+    });
+    try {
+      final service = OpenAIService(ApiConfig.openAiApiKey);
+      final data = await service.enhanceSpeech(widget.transcript);
+      setState(() {
+        _enhancedData = data;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate improved version: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isEnhancing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _onGenerateCoachPlan() async {
+    if (widget.transcript.trim().isEmpty) return;
+    setState(() { _isGeneratingCoachPlan = true; });
+    try {
+      final service = OpenAIService(ApiConfig.openAiApiKey);
+      final bands = <String, double>{
+        'fluency': widget.assessment.bands['fluency_coherence'] ?? 0.0,
+        'lexical': widget.assessment.bands['lexical_resource'] ?? 0.0,
+        'grammar': widget.assessment.bands['grammar'] ?? 0.0,
+        'pronunciation': widget.assessment.bands['pronunciation'] ?? 0.0,
+      };
+      final plan = await service.generateCoachPlan(
+        transcript: widget.transcript,
+        bands: bands,
+      );
+      setState(() { _coachPlan = plan; });
+      await FirestoreService.instance.saveCoachPlan(plan: plan);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Coach plan saved to your profile'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _showCoachPlanDialog(plan);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to generate plan: $e'), backgroundColor: AppColors.error),
+      );
+    } finally {
+      if (mounted) setState(() { _isGeneratingCoachPlan = false; });
+    }
+  }
+
+  void _showCoachPlanDialog(Map<String, dynamic> plan) {
+    final days = (plan['days'] as List?) ?? const [];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.9,
+          builder: (context, controller) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(plan['week_goal']?.toString() ?? 'Weekly Coach Plan', style: AppTypography.titleLarge.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(plan['rationale']?.toString() ?? '', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: controller,
+                      itemCount: days.length,
+                      itemBuilder: (context, i) {
+                        final d = days[i] as Map<String, dynamic>;
+                        final missions = (d['missions'] as List?)?.cast<String>() ?? const <String>[];
+                        final targets = (d['target_phrases'] as List?)?.cast<String>() ?? const <String>[];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Day ${d['day']}: ${d['title'] ?? ''}', style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+                              if (missions.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text('Missions:', style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600)),
+                                ...missions.map((m) => Text('• $m', style: AppTypography.bodyMedium)).toList(),
+                              ],
+                              if (targets.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text('Target phrases:', style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600)),
+                                Wrap(spacing: 6, runSpacing: 6, children: targets.map((t) => Chip(label: Text(t))).toList()),
+                              ],
+                              if ((d['checkpoint']?.toString() ?? '').isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text('Checkpoint: ${d['checkpoint']}', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEnhancedSection() {
+    final improved = (_enhancedData?['improved'] ?? '') as String;
+    final phrases = List<String>.from(_enhancedData?['advanced_phrases'] ?? const <String>[]);
+    final rationale = (_enhancedData?['rationale'] ?? '') as String;
+    final fillerReport = _analyzeFillers(widget.transcript);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Improved Transcript
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: AppColors.cardShadow,
+            border: Border.all(color: AppColors.success.withOpacity(0.2), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.upgrade_rounded, color: AppColors.success, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Band 8 style version',
+                    style: AppTypography.titleLarge.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                improved.isNotEmpty ? improved : 'No improved version available.',
+                style: AppTypography.bodyLarge.copyWith(height: 1.6, color: AppColors.textPrimary),
+              ),
+              if (rationale.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  rationale,
+                  style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                )
+              ],
+              if (phrases.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('Advanced, natural phrases used',
+                    style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                const SizedBox(height: 8),
+                ...phrases.map((p) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_rounded, size: 18, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(p, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary)))
+                    ],
+                  ),
+                ))
+              ]
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Filler word analysis
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: AppColors.cardShadow,
+            border: Border.all(color: AppColors.warning.withOpacity(0.2), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.record_voice_over_rounded, color: AppColors.warning, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Filler words and repetition',
+                    style: AppTypography.titleLarge.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (fillerReport['items'].isEmpty)
+                Text('Great! No distracting fillers detected.',
+                    style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary))
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ...List<Map<String, dynamic>>.from(fillerReport['items']).map((item) {
+                      final word = item['word'] as String;
+                      final count = item['count'] as int;
+                      final suggestions = List<String>.from(item['suggestions'] as List);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.warning.withOpacity(0.12), width: 1),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('"$word" repeated $count times',
+                                style: AppTypography.labelLarge.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 6),
+                            Text('Try these alternatives:',
+                                style: AppTypography.labelMedium.copyWith(color: AppColors.textSecondary)),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: suggestions.map((s) => Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: AppColors.primary.withOpacity(0.2), width: 1),
+                                ),
+                                child: Text(s, style: AppTypography.labelMedium.copyWith(color: AppColors.textPrimary)),
+                              )).toList(),
+                            )
+                          ],
+                        ),
+                      );
+                    })
+                  ],
+                )
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Map<String, dynamic> _analyzeFillers(String text) {
+    final lower = text.toLowerCase();
+    final candidates = <String, List<String>>{
+      'like': ['for instance', 'such as', 'for example'],
+      'you know': ['to be clear', 'notably', 'in fact'],
+      'um': ['(pause silently)', 'let me think', 'well'],
+      'uh': ['(pause silently)', 'well', 'actually'],
+      'basically': ['in essence', 'fundamentally', 'essentially'],
+      'actually': ['in fact', 'indeed', 'as a matter of fact'],
+      'i think': ['in my view', 'from my perspective', 'it seems to me'],
+      'kind of': ['somewhat', 'to some extent', 'relatively'],
+      'sort of': ['somewhat', 'to some extent', 'relatively'],
+      'maybe': ['perhaps', 'potentially', 'possibly'],
+    };
+    final items = <Map<String, dynamic>>[];
+    candidates.forEach((word, synonyms) {
+      final pattern = RegExp('\\b' + RegExp.escape(word) + '\\b');
+      final count = pattern.allMatches(lower).length;
+      if (count >= 2) {
+        items.add({'word': word, 'count': count, 'suggestions': synonyms});
+      }
+    });
+    return {'items': items};
   }
 
   Widget _buildTipsTab() {
@@ -713,21 +1125,191 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'General IELTS Speaking Tips',
+                'Actionable, transcript‑based tips',
                 style: AppTypography.titleLarge.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 16),
-              ...[
-                'Practice speaking English daily, even if just for a few minutes',
-                'Record yourself speaking and listen back to identify areas for improvement',
-                'Learn topic-specific vocabulary and practice using it in context',
-                'Work on your pronunciation by listening to native speakers',
-                'Practice organizing your thoughts quickly for Part 2 topics',
-              ].map((tip) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+              if (_isGeneratingTips)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                        ),
+                        const SizedBox(width: 10),
+                        Text('Analyzing your transcript…', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_actionableTips != null)
+                _buildActionableTips(_actionableTips!)
+              else
+                Text('Tips will appear here shortly based on your transcript.',
+                    style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _onGenerateTips() async {
+    if (widget.transcript.trim().isEmpty) return;
+    setState(() {
+      _isGeneratingTips = true;
+    });
+    try {
+      final service = OpenAIService(ApiConfig.openAiApiKey);
+      final data = await service.actionableTips(widget.transcript);
+      setState(() {
+        _actionableTips = data;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to analyze transcript: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingTips = false;
+        });
+      }
+    }
+  }
+
+  void _ensureTipsLoaded() {
+    if (_tipsRequestedOnce || _isGeneratingTips) return;
+    _tipsRequestedOnce = true;
+    _onGenerateTips();
+  }
+
+  Widget _buildActionableTips(Map<String, dynamic> tips) {
+    final repeated = List<Map<String, dynamic>>.from(tips['repeated_words'] ?? const []);
+    final simple = List<Map<String, dynamic>>.from(tips['simple_words'] ?? const []);
+    final priority = List<String>.from(tips['priority_tips'] ?? const []);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (repeated.isNotEmpty) ...[
+          Text('Overused/filler words',
+              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          ...repeated.map((r) => Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.warning.withOpacity(0.12), width: 1),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _openPracticeSheet(r['word'].toString()),
+                      child: Text('${r['word']} • ${r['count']} times',
+                        style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    ),
+                    if ((r['note'] ?? '').toString().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(r['note'].toString(), style: AppTypography.labelMedium.copyWith(color: AppColors.textSecondary)),
+                    ],
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: List<String>.from(r['c1_synonyms'] ?? const <String>[])
+                          .map((s) => GestureDetector(
+                                onTap: () => _openPracticeSheet(s),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.primary.withOpacity(0.2), width: 1),
+                                  ),
+                                  child: Text(s, style: AppTypography.labelMedium.copyWith(color: AppColors.textPrimary)),
+                                ),
+                              ))
+                          .toList(),
+                    )
+                  ],
+                ),
+              )),
+          const SizedBox(height: 14),
+        ],
+
+        if (simple.isNotEmpty) ...[
+          Text('Upgrade simple words to C1 level',
+              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          ...simple.map((r) => Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.info.withOpacity(0.12), width: 1),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _openPracticeSheet(r['word'].toString()),
+                      child: Text('${r['word']} • ${r['count']} times',
+                        style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: List<String>.from(r['c1_synonyms'] ?? const <String>[])
+                          .map((s) => GestureDetector(
+                                onTap: () => _openPracticeSheet(s),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.primary.withOpacity(0.2), width: 1),
+                                  ),
+                                  child: Text(s, style: AppTypography.labelMedium.copyWith(color: AppColors.textPrimary)),
+                                ),
+                              ))
+                          .toList(),
+                    ),
+                    if ((r['example'] ?? '').toString().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text('Example:', style: AppTypography.labelMedium.copyWith(color: AppColors.textSecondary)),
+                      const SizedBox(height: 4),
+                      Text(r['example'].toString(), style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary)),
+                    ]
+                  ],
+                ),
+              )),
+          const SizedBox(height: 14),
+        ],
+
+        if (priority.isNotEmpty) ...[
+          Text('Top priorities for your next attempt',
+              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          ...priority.map((p) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -735,27 +1317,201 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
                       width: 6,
                       height: 6,
                       margin: const EdgeInsets.only(top: 8, right: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
+                      decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                     ),
                     Expanded(
-                      child: Text(
-                        tip,
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textSecondary,
-                          height: 1.5,
-                        ),
-                      ),
+                      child: Text(p, style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary, height: 1.5)),
                     ),
                   ],
                 ),
               )),
-            ],
+        ]
+      ],
+    );
+  }
+
+  void _openPracticeSheet(String target) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        int remaining = 5;
+        return StatefulBuilder(
+          builder: (context, setBsState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 8,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: AppColors.cardShadow,
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(Icons.record_voice_over_rounded, color: AppColors.primary, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Practice: $target',
+                            style: AppTypography.titleLarge.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Say this word/phrase 5 times with natural intonation. Tap each time you say it clearly.',
+                      style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      children: List.generate(5, (i) {
+                        final done = i >= (5 - remaining);
+                        return GestureDetector(
+                          onTap: () {
+                            if (remaining > 0) setBsState(() => remaining -= 1);
+                            HapticFeedback.selectionClick();
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: done ? AppColors.success.withOpacity(0.15) : AppColors.primary.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: done ? AppColors.success.withOpacity(0.4) : AppColors.primary.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(done ? Icons.check_circle_rounded : Icons.circle_outlined,
+                                    size: 18, color: done ? AppColors.success : AppColors.primary),
+                                const SizedBox(width: 8),
+                                Text('Say', style: AppTypography.labelMedium.copyWith(color: AppColors.textPrimary)),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        remaining > 0 ? '${remaining} left' : 'Great job!',
+                        style: AppTypography.labelMedium.copyWith(
+                          color: remaining > 0 ? AppColors.textSecondary : AppColors.success,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildLearningInsightsButton() {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF3B82F6), // Blue
+            const Color(0xFF1D4ED8), // Darker blue
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3B82F6).withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: () {
+          // Save result to learning progress
+          final progressService = LearningProgressService();
+          progressService.addSessionResult(widget.assessment, 'Speaking Practice');
+          
+          // Navigate to Learning Insights
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LearningInsightsPage(
+                result: widget.assessment,
+                topic: 'Speaking Practice',
+                transcript: widget.transcript,
+              ),
+            ),
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
-      ],
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.school_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Learning Insights & Practice',
+              style: AppTypography.titleMedium.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

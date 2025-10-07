@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../services/firestore_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -201,6 +202,16 @@ class SwipeDeckController extends ChangeNotifier {
     
     // Сохраняем состояние
     await _persistSession();
+    // Firestore: логируем действие
+    await FirestoreService.instance.saveSwipeAction(
+      professionId: profession.id,
+      title: profession.title,
+      category: profession.category,
+      matchPercentage: profession.matchPercentage.round(),
+      action: action.name,
+    );
+    // Firestore: обновляем streak
+    await FirestoreService.instance.updateStreak(key: 'career_swipe_streak', value: _streakCount);
     
     // Переходим к следующей карточке
     _index = (_index + 1).clamp(0, _deck.length);

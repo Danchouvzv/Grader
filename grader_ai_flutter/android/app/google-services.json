@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "826439841489",
+    "project_id": "grader-a3239",
+    "storage_bucket": "grader-a3239.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:826439841489:android:2aca7e44c8ec7c1ba477f0",
+        "android_client_info": {
+          "package_name": "com.graderai.grader_ai_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKG6aZI2eq1D8e4wOZM4T9QLlI9JkFdp0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

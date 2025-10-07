@@ -4,11 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../shared/themes/app_colors.dart';
 import '../../shared/themes/app_typography.dart';
+import '../../shared/themes/design_system.dart';
 import '../widgets/enhanced_navigation_bar.dart';
 import '../../core/audio_recorder_service.dart';
 import '../../core/openai_service.dart';
 import '../../core/config/api_config.dart';
 import '../../core/services/profile_service.dart';
+import '../../core/services/firestore_service.dart';
 import '../../features/ielts/domain/entities/ielts_result.dart';
 import '../../features/ielts/domain/entities/ielts_speaking_part.dart';
 import '../../features/ielts/domain/usecases/manage_speaking_session.dart';
@@ -24,22 +26,41 @@ class EnhancedIeltsSpeakingPage extends StatefulWidget {
 class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
     with TickerProviderStateMixin {
   
-  // Services
-  final _recorder = AudioRecorderService();
-  late final _ai = OpenAIService(ApiConfig.openAiApiKey);
-  late final _sessionManager = ManageSpeakingSessionImpl();
-  final _profileService = ProfileService();
+  // Services - lazy initialization
+  AudioRecorderService? _recorder;
+  OpenAIService? _ai;
+  ManageSpeakingSessionImpl? _sessionManager;
+  ProfileService? _profileService;
   
+  // Lazy getters for services
+  AudioRecorderService get recorder => _recorder ??= AudioRecorderService();
+  OpenAIService get ai => _ai ??= OpenAIService(ApiConfig.openAiApiKey);
+  ManageSpeakingSessionImpl get sessionManager => _sessionManager ??= ManageSpeakingSessionImpl();
+  ProfileService get profileService => _profileService ??= ProfileService();
+
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
-    _initializeSession();
+    _initializeSessionLazy();
     
-    // Debug: Check API configuration
+    // Debug: Check API configuration (only log, don't initialize)
     print('🔑 OpenAI API Key configured: ${ApiConfig.isOpenAiConfigured}');
-    if (ApiConfig.isOpenAiConfigured) {
-      print('🔑 API Key prefix: ${ApiConfig.openAiApiKey.substring(0, 8)}...');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Change topic when returning to this screen
+    _changeTopicOnReturn();
+  }
+
+  void _changeTopicOnReturn() {
+    // Change topic when user returns from profile or other screens
+    if (mounted) {
+      setState(() {
+        _speakingSession = sessionManager.changeCurrentPartTopic(_speakingSession);
+      });
     }
   }
   
@@ -92,15 +113,16 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
     _fadeController.forward();
   }
 
-  void _initializeSession() {
-    _speakingSession = _sessionManager.createNewSession();
+  void _initializeSessionLazy() {
+    // Initialize session only when needed
+    _speakingSession = sessionManager.createNewSession();
   }
 
   @override
   void dispose() {
     _slideController.dispose();
     _fadeController.dispose();
-    _recorder.dispose();
+    _recorder?.dispose();
     _recordingTimer?.cancel();
     super.dispose();
   }
@@ -115,7 +137,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
 
   Future<void> _startRecording() async {
     try {
-      final path = await _recorder.start();
+      final path = await recorder.start();
       setState(() {
         _audioPath = path;
         _isRecording = true;
@@ -127,14 +149,20 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       HapticFeedback.lightImpact();
     } catch (e) {
       setState(() {
-        _error = 'Failed to start recording: $e';
+        _error = _getUserFriendlyError(e.toString());
       });
+      
+      // Show detailed error dialog for iOS session issues
+      if (e.toString().contains('Session activation failed') || 
+          e.toString().contains('Microphone is busy')) {
+        _showMicrophoneErrorDialog();
+      }
     }
   }
 
   Future<void> _stopRecording() async {
     try {
-      final path = await _recorder.stop();
+      final path = await recorder.stop();
       _recordingTimer?.cancel();
       
       setState(() {
@@ -164,6 +192,102 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
     });
   }
 
+  void _showMicrophoneErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.mic_off_rounded,
+              color: DesignSystem.red500,
+              size: 24.w,
+            ),
+            SizedBox(width: 12.w),
+            Text(
+              'Microphone Issue',
+              style: DesignSystem.headlineMedium.copyWith(
+                color: DesignSystem.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'The microphone is currently busy or not available. Here\'s how to fix it:',
+              style: DesignSystem.bodyMedium.copyWith(
+                color: DesignSystem.textSecondary,
+              ),
+            ),
+            SizedBox(height: 16.h),
+            _buildSolutionItem(
+              icon: Icons.close_rounded,
+              text: 'Close other apps using microphone (Discord, FaceTime, etc.)',
+            ),
+            SizedBox(height: 8.h),
+            _buildSolutionItem(
+              icon: Icons.settings_rounded,
+              text: 'Check microphone permissions in Settings',
+            ),
+            SizedBox(height: 8.h),
+            _buildSolutionItem(
+              icon: Icons.bluetooth_disabled_rounded,
+              text: 'Disconnect Bluetooth headphones if having issues',
+            ),
+            SizedBox(height: 8.h),
+            _buildSolutionItem(
+              icon: Icons.refresh_rounded,
+              text: 'Restart the app and try again',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Got it',
+              style: DesignSystem.bodyLarge.copyWith(
+                color: DesignSystem.blue600,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSolutionItem({
+    required IconData icon,
+    required String text,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: DesignSystem.blue600,
+          size: 16.w,
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            text,
+            style: DesignSystem.bodySmall.copyWith(
+              color: DesignSystem.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   String _formatDuration(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
@@ -190,7 +314,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       print('🎤 Starting transcription for: $_audioPath');
       
       // Transcribe
-      final transcript = await _ai.transcribeAudio(_audioPath!);
+      final transcript = await ai.transcribeAudio(_audioPath!);
       print('📝 Transcription completed: ${transcript.substring(0, transcript.length > 50 ? 50 : transcript.length)}...');
       
       if (transcript.isEmpty) {
@@ -199,7 +323,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       
       // Grade
       print('🤖 Starting IELTS grading...');
-      final feedback = await _ai.gradeIelts(transcript, durationSeconds: _recordingSeconds);
+      final feedback = await ai.gradeIelts(transcript, durationSeconds: _recordingSeconds);
       print('✅ Grading completed');
       
       final result = _parseOpenAIResponse(transcript, feedback);
@@ -214,7 +338,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       print('=' * 50);
       
       // Complete current part
-      final updatedSession = _sessionManager.completeCurrentPart(_speakingSession, result);
+      final updatedSession = sessionManager.completeCurrentPart(_speakingSession, result);
       
       setState(() {
         _result = result;
@@ -230,6 +354,19 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       setState(() {
         _error = _getUserFriendlyError(e.toString());
         _isProcessing = false;
+      });
+    }
+  }
+
+  Future<void> _playRecording() async {
+    if (_audioPath == null) return;
+    
+    try {
+      HapticFeedback.lightImpact();
+      await recorder.playRecording(_audioPath!);
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to play recording: $e';
       });
     }
   }
@@ -588,9 +725,10 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
 
   Future<void> _saveSessionToDatabase(IeltsResult result, String transcript, String feedback) async {
     try {
-      final profile = await _profileService.getCurrentProfile();
+      final profile = await profileService.getCurrentProfile();
       if (profile?.id != null) {
-        await _profileService.recordSession(
+        // Save to local database
+        await profileService.recordSession(
           userId: profile!.id!,
           sessionType: 'practice',
           partType: 'part${_speakingSession.currentPartIndex + 1}',
@@ -605,12 +743,22 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           audioPath: _audioPath,
         );
         
+        // Save to Firestore for weekly progress
+        await FirestoreService.instance.saveIeltsResult(
+          overallBand: result.overallBand,
+          fluency: result.bands['fluency_coherence'] ?? 6.0,
+          lexical: result.bands['lexical_resource'] ?? 6.0,
+          grammar: result.bands['grammar'] ?? 6.0,
+          pronunciation: result.bands['pronunciation'] ?? 6.0,
+          transcript: transcript,
+        );
+        
         print('💾 Saved to database with scores:');
         print('   Fluency: ${result.bands['fluency_coherence']}');
         print('   Lexical: ${result.bands['lexical_resource']}');
         print('   Grammar: ${result.bands['grammar']}');
         print('   Pronunciation: ${result.bands['pronunciation']}');
-        print('✅ Session saved to database');
+        print('✅ Session saved to local database and Firestore');
       }
     } catch (e) {
       print('❌ Error saving session to database: $e');
@@ -629,7 +777,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
 
   void _moveToNextPart() {
     if (_speakingSession.canMoveToNextPart) {
-      final updatedSession = _sessionManager.moveToNextPart(_speakingSession);
+      final updatedSession = sessionManager.moveToNextPart(_speakingSession);
       setState(() {
         _speakingSession = updatedSession;
       });
@@ -732,10 +880,11 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              const Color(0xFFF8FAFC),
               Colors.white,
               const Color(0xFFF8FAFC),
+              const Color(0xFFF1F5F9),
             ],
+            stops: const [0.0, 0.5, 1.0],
           ),
         ),
         child: SafeArea(
@@ -763,188 +912,153 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
 
   Widget _buildModernAppBar() {
     return Container(
-      margin: EdgeInsets.all(20.w),
-      padding: EdgeInsets.all(24.w),
+      margin: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 8.h),
+      padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 16.h),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF0D1117), // Dark blue-black
+            const Color(0xFF161B22), // Medium dark
+            const Color(0xFF21262D), // Lighter dark
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ),
         borderRadius: BorderRadius.circular(24.r),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1a1a2e).withOpacity(0.08),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
+            color: const Color(0xFF0D1117).withOpacity(0.6),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
             spreadRadius: 0,
           ),
           BoxShadow(
-            color: Colors.white.withOpacity(0.9),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+            color: const Color(0xFF161B22).withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
             spreadRadius: 0,
           ),
         ],
+        border: Border.all(
+          color: const Color(0xFF30363D).withOpacity(0.3),
+          width: 1,
+        ),
       ),
-      child: Column(
+      child: Row(
         children: [
-          // Top Row - Simplified to prevent overflow
-          Row(
-            children: [
-              // Back Button
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: EdgeInsets.all(10.w), // Уменьшили padding
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFFE53935).withOpacity(0.1),
-                        const Color(0xFF1976D2).withOpacity(0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14.r),
-                    border: Border.all(
-                      color: const Color(0xFFE53935).withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.arrow_back_ios_rounded,
-                    color: const Color(0xFFE53935),
-                    size: 18.w, // Уменьшили размер иконки
-                  ),
-                ),
-              ),
-              
-              SizedBox(width: 12.w), // Уменьшили отступ
-              
-              // Title Section - Simplified
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'IELTS',
-                          style: TextStyle(
-                            fontSize: 16.sp, // Уменьшили размер шрифта
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFFE53935),
-                            letterSpacing: 0.3, // Уменьшили letter spacing
-                          ),
-                        ),
-                        SizedBox(width: 2.w), // Уменьшили отступ
-                        Text(
-                          'Speaking',
-                          style: TextStyle(
-                            fontSize: 16.sp, // Уменьшили размер шрифта
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF1976D2),
-                            letterSpacing: 0.3, // Уменьшили letter spacing
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      'AI-Powered Practice',
-                      style: TextStyle(
-                        fontSize: 11.sp, // Уменьшили размер шрифта
-                        color: const Color(0xFF64748b),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              SizedBox(width: 8.w), // Добавили отступ перед progress circle
-              
-              // Progress Circle
-              _buildProgressCircle(),
-            ],
-          ),
-          
-          SizedBox(height: 20.h),
-          
-          // Current Part Info
+          // Creative Logo/Icon
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+            width: 48.w,
+            height: 48.h,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFFF8FAFC),
-                  Colors.white,
+                  const Color(0xFF58A6FF), // Bright blue
+                  const Color(0xFF1F6FEB), // Darker blue
                 ],
               ),
-              borderRadius: BorderRadius.circular(20.r),
-              border: Border.all(
-                color: const Color(0xFFE2E8F0),
-                width: 1,
-              ),
+              borderRadius: BorderRadius.circular(16.r),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF58A6FF).withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Row(
+            child: Icon(
+              Icons.record_voice_over_rounded,
+              color: Colors.white,
+              size: 24.w,
+            ),
+          ),
+          
+          SizedBox(width: 16.w),
+          
+          // Title Section - Compact
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: EdgeInsets.all(10.w),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFFE53935).withOpacity(0.1),
-                        const Color(0xFF1976D2).withOpacity(0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                  child: Icon(
-                    Icons.mic_rounded,
-                    color: const Color(0xFFE53935),
-                    size: 20.w,
+                Text(
+                  'IELTS Speaking',
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                    height: 1.1,
                   ),
                 ),
-                SizedBox(width: 16.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _speakingSession.currentPart.type.title,
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          color: const Color(0xFF1a1a2e),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        'Part ${_speakingSession.currentPartIndex + 1} of ${_speakingSession.parts.length}',
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          color: const Color(0xFF64748b),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFFE53935),
-                        const Color(0xFF1976D2),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
-                  child: Text(
-                    '${_speakingSession.currentPartIndex + 1}/${_speakingSession.parts.length}',
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
+                Text(
+                  'Part ${_speakingSession.currentPartIndex + 1} • AI Practice',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: const Color(0xFF8B949E),
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ],
+            ),
+          ),
+          
+          // Progress Circle - Compact
+          _buildCompactProgressCircle(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactProgressCircle() {
+    final progress = (_speakingSession.currentPartIndex + 1) / _speakingSession.parts.length;
+    
+    return Container(
+      width: 40.w,
+      height: 40.h,
+      decoration: BoxDecoration(
+        color: const Color(0xFF21262D),
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(
+          color: const Color(0xFF30363D),
+          width: 1,
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Background circle
+          Container(
+            width: 40.w,
+            height: 40.h,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+            ),
+          ),
+          // Progress circle
+          Container(
+            width: 40.w,
+            height: 40.h,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF58A6FF),
+                  const Color(0xFF1F6FEB),
+                ],
+              ),
+            ),
+            child: Center(
+              child: Text(
+                '${_speakingSession.currentPartIndex + 1}',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
         ],
@@ -959,38 +1073,35 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       alignment: Alignment.center,
       children: [
         SizedBox(
-          width: 45.w, // Уменьшили размер
-          height: 45.h,
+          width: 50.w,
+          height: 50.h,
           child: CircularProgressIndicator(
             value: progress,
-            strokeWidth: 3, // Уменьшили толщину
-            backgroundColor: const Color(0xFFE2E8F0),
+            strokeWidth: 4,
+            backgroundColor: Colors.white.withOpacity(0.3),
             valueColor: AlwaysStoppedAnimation<Color>(
-              const Color(0xFFE53935),
+              Colors.white,
             ),
           ),
         ),
         Container(
-          width: 35.w, // Уменьшили размер
-          height: 35.h,
+          width: 40.w,
+          height: 40.h,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Colors.white.withOpacity(0.2),
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1a1a2e).withOpacity(0.1),
-                blurRadius: 6, // Уменьшили тень
-                offset: const Offset(0, 1),
-              ),
-            ],
+            border: Border.all(
+              color: Colors.white.withOpacity(0.5),
+              width: 1,
+            ),
           ),
           child: Center(
             child: Text(
               '${(_speakingSession.currentPartIndex + 1)}',
               style: TextStyle(
-                fontSize: 12.sp, // Уменьшили шрифт
+                fontSize: 14.sp,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFFE53935),
+                color: Colors.white,
               ),
             ),
           ),
@@ -1033,29 +1144,6 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           // Top Row
           Row(
             children: [
-              // Back Button
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.arrow_back_ios_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-              
-              const SizedBox(width: 16),
-              
               // Title Section
               Expanded(
                 child: Column(
@@ -1069,11 +1157,15 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                           size: 20,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'AI-Powered IELTS',
-                          style: AppTypography.titleLarge.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
+                        Expanded(
+                          child: Text(
+                            'AI-Powered IELTS',
+                            style: AppTypography.titleLarge.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                         ),
                       ],
@@ -1085,6 +1177,8 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                         color: Colors.white.withOpacity(0.9),
                         fontWeight: FontWeight.w500,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ],
                 ),
@@ -1130,14 +1224,14 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                       Text(
                         _speakingSession.currentPart.type.title,
                         style: AppTypography.labelLarge.copyWith(
-                          color: Colors.white,
+                          color: const Color(0xFF1a1a2e),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       Text(
-                        'Part ${_speakingSession.currentPartIndex + 1} of ${_speakingSession.parts.length}',
+                        '${_speakingSession.currentPartIndex + 1} of ${_speakingSession.parts.length}',
                         style: AppTypography.labelSmall.copyWith(
-                          color: Colors.white.withOpacity(0.8),
+                          color: const Color(0xFF1a1a2e).withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -1298,71 +1392,57 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
     final currentPart = _speakingSession.currentPart;
     
     return Container(
-      padding: EdgeInsets.all(28.w),
+      padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24.r),
+        borderRadius: BorderRadius.circular(28.r),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1a1a2e).withOpacity(0.08),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.white.withOpacity(0.9),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-            spreadRadius: 0,
+            color: const Color(0xFF1976D2).withOpacity(0.1),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with icon
+          // Simple header
           Row(
             children: [
-              Container(
-                padding: EdgeInsets.all(12.w),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFFE53935).withOpacity(0.1),
-                      const Color(0xFF1976D2).withOpacity(0.1),
-                    ],
+              Icon(
+                Icons.record_voice_over_rounded,
+                color: const Color(0xFF1976D2),
+                size: 24.w,
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Text(
+                  currentPart.type.title,
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1a1a2e),
                   ),
-                  borderRadius: BorderRadius.circular(16.r),
-                ),
-                child: Icon(
-                  Icons.quiz_outlined,
-                  color: const Color(0xFFE53935),
-                  size: 24.w,
                 ),
               ),
-              SizedBox(width: 16.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      currentPart.type.title,
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1a1a2e),
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    Text(
-                      'Duration: ${currentPart.type.duration} minutes',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: const Color(0xFF64748b),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1976D2).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Text(
+                  '${currentPart.type.duration}',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: const Color(0xFF1976D2),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -1370,150 +1450,252 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           
           SizedBox(height: 24.h),
           
-          // Instructions (Time Limit)
-          if (currentPart.timeLimit.isNotEmpty) ...[
-            Container(
-              padding: EdgeInsets.all(20.w),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFF8FAFC),
-                    Colors.white,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16.r),
-                border: Border.all(
-                  color: const Color(0xFFE2E8F0),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline_rounded,
-                        color: const Color(0xFF1976D2),
-                        size: 20.w,
-                      ),
-                      SizedBox(width: 8.w),
-                      Text(
-                        'Instructions',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1976D2),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 12.h),
-                  Text(
-                    currentPart.timeLimit,
-                    style: TextStyle(
-                      fontSize: 15.sp,
-                      color: const Color(0xFF374151),
-                      fontWeight: FontWeight.w500,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 20.h),
-          ],
-          
-          // Question
+          // Question - Simplified and compact
           Container(
             padding: EdgeInsets.all(20.w),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFFE53935).withOpacity(0.05),
-                  const Color(0xFF1976D2).withOpacity(0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(16.r),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF1976D2).withOpacity(0.1),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
               border: Border.all(
-                color: const Color(0xFFE53935).withOpacity(0.2),
+                                color: const Color(0xFF1976D2).withOpacity(0.15),
                 width: 1,
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Simple header
                 Row(
                   children: [
                     Icon(
-                      Icons.record_voice_over_rounded,
-                      color: const Color(0xFFE53935),
+                      Icons.chat_bubble_outline_rounded,
+                      color: const Color(0xFF1976D2),
                       size: 20.w,
                     ),
                     SizedBox(width: 8.w),
-                    Text(
-                      'Your Task',
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFFE53935),
+                    Expanded(
+                      child: Text(
+                        'Speaking Task',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1a1a2e),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 12.h),
-                Text(
-                  currentPart.topic,
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    color: const Color(0xFF1a1a2e),
-                    fontWeight: FontWeight.w600,
-                    height: 1.5,
+                
+                SizedBox(height: 16.h),
+                
+                // Topic - Elegant design
+                Container(
+                  padding: EdgeInsets.all(20.w),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF1976D2).withOpacity(0.08),
+                        const Color(0xFF1976D2).withOpacity(0.12),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20.r),
+                    border: Border.all(
+                      color: const Color(0xFF1976D2).withOpacity(0.15),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1976D2).withOpacity(0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(8.w),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1976D2).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10.r),
+                              ),
+                              child: Icon(
+                                Icons.topic_rounded,
+                                color: const Color(0xFF1976D2),
+                                size: 18.w,
+                              ),
+                            ),
+                            SizedBox(width: 12.w),
+                            Expanded(
+                              child: Text(
+                                'Topic',
+                                style: TextStyle(
+                                  fontSize: 15.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1976D2),
+                                  letterSpacing: 0.5,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 12.h),
+                        Text(
+                          currentPart.topic,
+                          style: TextStyle(
+                            fontSize: 17.sp,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1976D2),
+                            height: 1.5,
+                            letterSpacing: 0.3,
+                          ),
+                          overflow: TextOverflow.visible,
+                          softWrap: true,
+                        ),
+                    ],
                   ),
                 ),
                 
                 SizedBox(height: 16.h),
                 
-                // Points/Questions
+                // Questions - Elegant design
                 if (currentPart.points.isNotEmpty) ...[
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: currentPart.points.map((point) => Padding(
-                      padding: EdgeInsets.only(bottom: 8.h),
+                  Container(
+                    padding: EdgeInsets.all(20.w),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFF1976D2).withOpacity(0.08),
+                          const Color(0xFF1976D2).withOpacity(0.12),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(
+                        color: const Color(0xFF1976D2).withOpacity(0.15),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1976D2).withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                          spreadRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(8.w),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1976D2).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10.r),
+                              ),
+                              child: Icon(
+                                Icons.quiz_rounded,
+                                color: const Color(0xFF1976D2),
+                                size: 18.w,
+                              ),
+                            ),
+                            SizedBox(width: 12.w),
+                            Expanded(
+                              child: Text(
+                                'Questions to answer',
+                                style: TextStyle(
+                                  fontSize: 15.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1976D2),
+                                  letterSpacing: 0.5,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 12.h),
+                  ...currentPart.points.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final point = entry.value;
+                    
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: 12.h),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            width: 6.w,
-                            height: 6.h,
-                            margin: EdgeInsets.only(top: 6.h),
+                            width: 24.w,
+                            height: 24.h,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  const Color(0xFFE53935),
                                   const Color(0xFF1976D2),
+                                  const Color(0xFF1565C0),
                                 ],
                               ),
-                              shape: BoxShape.circle,
+                              borderRadius: BorderRadius.circular(12.r),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF1976D2).withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${index + 1}',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
-                          SizedBox(width: 12.w),
+                          SizedBox(width: 16.w),
                           Expanded(
                             child: Text(
                               point,
                               style: TextStyle(
-                                fontSize: 14.sp,
-                                color: const Color(0xFF374151),
+                                fontSize: 16.sp,
                                 fontWeight: FontWeight.w500,
+                                color: const Color(0xFF1976D2),
                                 height: 1.4,
+                                letterSpacing: 0.2,
                               ),
+                              overflow: TextOverflow.visible,
+                              softWrap: true,
                             ),
                           ),
                         ],
                       ),
-                    )).toList(),
+                    );
+                  }).toList(),
+                      ],
+                    ),
                   ),
                 ],
               ],
@@ -1529,7 +1711,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       padding: EdgeInsets.all(32.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24.r),
+        borderRadius: BorderRadius.circular(32.r),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF1a1a2e).withOpacity(0.08),
@@ -1547,18 +1729,48 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
       ),
       child: Column(
         children: [
-          // Recording status
-          Text(
-            _isRecording ? 'Recording...' : _audioPath != null ? 'Recording Complete' : 'Ready to Record',
-            style: TextStyle(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w700,
-              color: _isRecording 
-                  ? const Color(0xFFE53935) 
-                  : _audioPath != null 
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFF64748b),
-            ),
+          // Recording status with timer
+          Column(
+            children: [
+              Text(
+                _isRecording ? 'Recording...' : _audioPath != null ? 'Recording Complete' : 'Ready to Record',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: _isRecording 
+                      ? const Color(0xFFE53935) 
+                      : _audioPath != null 
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF64748b),
+                ),
+              ),
+              
+              // Timer display when recording
+              if (_isRecording) ...[
+                SizedBox(height: 8.h),
+                Text(
+                  '${_recordingSeconds}s',
+                  style: TextStyle(
+                    fontSize: 24.sp,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFE53935),
+                  ),
+                ),
+              ],
+              
+              // Duration display when completed
+              if (_audioPath != null && !_isRecording && _duration != null) ...[
+                SizedBox(height: 8.h),
+                Text(
+                  'Duration: $_duration',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF10B981),
+                  ),
+                ),
+              ],
+            ],
           ),
           
           SizedBox(height: 24.h),
@@ -1614,11 +1826,42 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                       },
                     ),
                   
-                  Icon(
-                    _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                    color: Colors.white,
-                    size: 48.w,
+                  // Main icon with better visibility
+                  Container(
+                    width: 56.w,
+                    height: 56.h,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.15),
+                    ),
+                    child: Icon(
+                      _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                      color: Colors.white,
+                      size: 32.w,
+                    ),
                   ),
+                  
+                  // Recording indicator dot
+                  if (_isRecording)
+                    Positioned(
+                      top: 15.h,
+                      right: 15.w,
+                      child: Container(
+                        width: 10.w,
+                        height: 10.h,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red,
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1701,7 +1944,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                   const Color(0xFF1976D2),
                 ],
               ),
-              borderRadius: BorderRadius.circular(16.r),
+              borderRadius: BorderRadius.circular(24.r),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFFE53935).withOpacity(0.4),
@@ -1717,20 +1960,30 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16.r),
+                  borderRadius: BorderRadius.circular(24.r),
                 ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Colors.white,
-                    size: 20.w,
-                  ),
+                  if (_isProcessing)
+                    SizedBox(
+                      width: 20.w,
+                      height: 20.h,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 20.w,
+                    ),
                   SizedBox(width: 8.w),
                   Text(
-                    'Analyze with AI',
+                    _isProcessing ? 'Analyzing...' : 'Get My Score',
                     style: TextStyle(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.w700,
@@ -1743,33 +1996,63 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
           ),
         ),
         
-        SizedBox(width: 16.w),
+        SizedBox(width: 12.w),
+        
+        // Play button
+        Tooltip(
+          message: 'Play recording',
+          child: Container(
+            width: 56.w,
+            height: 56.h,
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(24.r),
+              border: Border.all(
+                color: const Color(0xFF10B981).withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            child: IconButton(
+              onPressed: _playRecording,
+              icon: Icon(
+                Icons.play_arrow_rounded,
+                color: const Color(0xFF10B981),
+                size: 24.w,
+              ),
+            ),
+          ),
+        ),
+        
+        SizedBox(width: 12.w),
         
         // Re-record button
-        Container(
-          width: 56.w,
-          height: 56.h,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16.r),
-            border: Border.all(
-              color: const Color(0xFFE2E8F0),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1a1a2e).withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+        Tooltip(
+          message: 'Record again',
+          child: Container(
+            width: 56.w,
+            height: 56.h,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24.r),
+              border: Border.all(
+                color: const Color(0xFFE2E8F0),
+                width: 1.5,
               ),
-            ],
-          ),
-          child: IconButton(
-            onPressed: _resetRecording,
-            icon: Icon(
-              Icons.refresh_rounded,
-              color: const Color(0xFF64748b),
-              size: 24.w,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF1a1a2e).withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: IconButton(
+              onPressed: _resetRecording,
+              icon: Icon(
+                Icons.mic_none_rounded,
+                color: const Color(0xFF64748b),
+                size: 24.w,
+              ),
             ),
           ),
         ),
@@ -2070,11 +2353,15 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                     size: 16,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Time limit: ${currentPart.timeLimit}',
-                    style: AppTypography.labelMedium.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      'Time limit: ${currentPart.timeLimit}',
+                      style: AppTypography.labelMedium.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 ],
@@ -2253,3 +2540,4 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
     );
   }
 }
+

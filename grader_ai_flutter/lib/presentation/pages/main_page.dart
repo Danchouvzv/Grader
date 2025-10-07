@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../../shared/themes/app_colors.dart';
 import '../../shared/themes/app_typography.dart';
 import 'enhanced_ielts_speaking_page.dart';
-import 'career_guidance_page.dart';
 import 'profile_page.dart';
 
 class MainPage extends StatefulWidget {
@@ -21,7 +20,6 @@ class _MainPageState extends State<MainPage> with TickerProviderStateMixin {
 
   final List<Widget> _pages = [
     const EnhancedIeltsSpeakingPage(), // IELTS Speaking - прямо Enhanced UI
-    const CareerGuidancePage(), // Профориентация  
     const ProfilePage(), // Профиль
   ];
 
@@ -37,21 +35,11 @@ class _MainPageState extends State<MainPage> with TickerProviderStateMixin {
       ),
     ),
     BottomNavigationItem(
-      icon: Icons.psychology_rounded,
-      activeIcon: Icons.psychology,
-      label: 'Career Guidance',
-      gradient: LinearGradient(
-        colors: [AppColors.secondary, AppColors.success],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-    ),
-    BottomNavigationItem(
       icon: Icons.person_outline_rounded,
       activeIcon: Icons.person,
       label: 'Profile',
       gradient: LinearGradient(
-        colors: [AppColors.accent, AppColors.warning],
+        colors: [const Color(0xFFEF4444), const Color(0xFFDC2626)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),

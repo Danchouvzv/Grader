@@ -161,11 +161,6 @@ class _EnhancedResultsWidgetState extends State<EnhancedResultsWidget>
           
           const SizedBox(height: 24),
           
-          // Tips
-          _buildTipsCard(),
-          
-          const SizedBox(height: 24),
-          
           // Action Buttons
           _buildActionButtons(),
         ],

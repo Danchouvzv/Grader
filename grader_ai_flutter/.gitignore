@@ -56,3 +56,6 @@ ios/fastlane/.env
 # Fastlane
 ios/fastlane/Appfile
 ios/fastlane/Fastfile
+build/
+ios/build/
+android/build/
