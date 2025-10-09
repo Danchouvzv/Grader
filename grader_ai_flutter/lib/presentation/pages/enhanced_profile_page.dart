@@ -150,6 +150,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
       currentStreak: 14, // 14 days streak
       avatarPath: 'professional',
       createdAt: DateTime.now().subtract(const Duration(days: 30)),
+      updatedAt: DateTime.now(),
     );
 
     // Mock stats showing improvement
