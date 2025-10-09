@@ -123,6 +123,9 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
         _stats = futures[2] as Map<String, dynamic>;
         _weeklyProgress = futures[3] as List<Map<String, dynamic>>;
         
+        // 🎯 MOCK DATA FOR DEMO - Replace with real data
+        _loadMockData();
+        
         print('🏆 Profile loaded:');
         print('   Achievements: ${_achievements.length}');
         print('   Types: ${_achievements.map((a) => a.achievementType).toList()}');
@@ -135,6 +138,136 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  void _loadMockData() {
+    // Mock profile with realistic progress
+    _profile = UserProfile(
+      id: _profile?.id ?? 1,
+      name: 'Alex Johnson',
+      email: 'alex.johnson@email.com',
+      targetBand: 7.5,
+      currentStreak: 14, // 14 days streak
+      avatarPath: 'professional',
+      createdAt: DateTime.now().subtract(const Duration(days: 30)),
+    );
+
+    // Mock stats showing improvement
+    _stats = {
+      'totalSessions': 47,
+      'totalTime': 1840, // minutes
+      'averageBand': 6.8, // improved from 6.3
+      'bestBand': 7.2, // improved from 6.8
+      'currentLevel': 8,
+      'xpToNextLevel': 320,
+      'totalXP': 2840,
+    };
+
+    // Mock weekly progress showing improvement trend
+    final now = DateTime.now();
+    _weeklyProgress = List.generate(7, (index) {
+      final date = now.subtract(Duration(days: 6 - index));
+      final dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index];
+      
+      // Simulate increasing performance over the week
+      final baseSessions = [2, 3, 1, 4, 2, 3, 5][index];
+      final baseBand = [6.5, 6.7, 6.4, 6.9, 6.6, 6.8, 7.1][index];
+      
+      return {
+        'day': dayName,
+        'sessions': baseSessions,
+        'band': baseBand,
+        'date': DateFormat('yyyy-MM-dd').format(date),
+      };
+    });
+
+    // Mock recent sessions with improvement
+    _recentSessions = [
+      SessionRecord(
+        id: 1,
+        userId: _profile!.id!,
+        overallBand: 7.2,
+        fluency: 7.0,
+        lexical: 7.5,
+        grammar: 7.0,
+        pronunciation: 7.3,
+        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+      ),
+      SessionRecord(
+        id: 2,
+        userId: _profile!.id!,
+        overallBand: 6.9,
+        fluency: 6.8,
+        lexical: 7.0,
+        grammar: 6.9,
+        pronunciation: 7.0,
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+      SessionRecord(
+        id: 3,
+        userId: _profile!.id!,
+        overallBand: 6.7,
+        fluency: 6.5,
+        lexical: 6.8,
+        grammar: 6.7,
+        pronunciation: 6.8,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      ),
+    ];
+
+    // Mock achievements - unlock some realistic ones
+    _achievements = [
+      Achievement(
+        id: 1,
+        userId: _profile!.id!,
+        achievementType: 'first_session',
+        title: 'First Steps',
+        description: 'Complete your first IELTS speaking session',
+        unlockedAt: DateTime.now().subtract(const Duration(days: 30)),
+        iconData: 'Icons.flag_rounded',
+        colorHex: '#3B82F6',
+      ),
+      Achievement(
+        id: 2,
+        userId: _profile!.id!,
+        achievementType: 'streak_7',
+        title: 'Week Warrior',
+        description: 'Practice for 7 days straight',
+        unlockedAt: DateTime.now().subtract(const Duration(days: 7)),
+        iconData: 'Icons.local_fire_department_rounded',
+        colorHex: '#F59E0B',
+      ),
+      Achievement(
+        id: 3,
+        userId: _profile!.id!,
+        achievementType: 'streak_14',
+        title: 'Streak Master',
+        description: 'Practice for 14 days straight',
+        unlockedAt: DateTime.now().subtract(const Duration(days: 1)),
+        iconData: 'Icons.local_fire_department_rounded',
+        colorHex: '#EF4444',
+      ),
+      Achievement(
+        id: 4,
+        userId: _profile!.id!,
+        achievementType: 'band_improvement',
+        title: 'Rising Star',
+        description: 'Improve your band score by 0.5 points',
+        unlockedAt: DateTime.now().subtract(const Duration(days: 3)),
+        iconData: 'Icons.trending_up_rounded',
+        colorHex: '#10B981',
+      ),
+      Achievement(
+        id: 5,
+        userId: _profile!.id!,
+        achievementType: 'sessions_25',
+        title: 'Dedicated Learner',
+        description: 'Complete 25 practice sessions',
+        unlockedAt: DateTime.now().subtract(const Duration(days: 5)),
+        iconData: 'Icons.emoji_events_rounded',
+        colorHex: '#8B5CF6',
+      ),
+    ];
   }
 
   @override
