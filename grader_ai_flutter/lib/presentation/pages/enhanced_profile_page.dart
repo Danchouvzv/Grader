@@ -156,12 +156,13 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     // Mock stats showing improvement
     _stats = {
       'totalSessions': 47,
-      'totalTime': 1840, // minutes
+      'totalTime': 1840, // minutes (30.7 hours)
       'averageBand': 6.8, // improved from 6.3
       'bestBand': 7.2, // improved from 6.8
       'currentLevel': 8,
       'xpToNextLevel': 320,
       'totalXP': 2840,
+      'totalPracticeTime': 110400, // seconds (30.7 hours)
     };
 
     // Mock weekly progress showing improvement trend
@@ -170,15 +171,17 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
       final date = now.subtract(Duration(days: 6 - index));
       final dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index];
       
-      // Simulate increasing performance over the week
-      final baseSessions = [2, 3, 1, 4, 2, 3, 5][index];
-      final baseBand = [6.5, 6.7, 6.4, 6.9, 6.6, 6.8, 7.1][index];
+      // More realistic weekly progress with gradual improvement
+      final baseSessions = [1, 2, 1, 3, 2, 2, 4][index];
+      final baseBand = [6.4, 6.6, 6.3, 6.8, 6.5, 6.7, 7.0][index];
       
       return {
         'day': dayName,
         'sessions': baseSessions,
         'band': baseBand,
         'date': DateFormat('yyyy-MM-dd').format(date),
+        'sessions_count': baseSessions, // Alternative key for compatibility
+        'average_band': baseBand, // Alternative key for compatibility
       };
     });
 
