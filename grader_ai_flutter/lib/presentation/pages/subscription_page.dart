@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../shared/themes/design_system.dart';
 import '../../core/services/iap_service.dart';
 import 'dart:math' as math;
@@ -728,47 +729,51 @@ class _SubscriptionPageState extends State<SubscriptionPage> with TickerProvider
   }
 
   Future<void> _handleSubscription(String productId, bool isMock) async {
-    if (isMock) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Mock mode: Real products not configured in stores'),
-          backgroundColor: DesignSystem.amber500,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.r),
-          ),
-        ),
-      );
-      return;
-    }
+    // Redirect to Telegram for subscription
+    await _openTelegramSubscription();
+  }
 
-    setState(() => _isLoading = true);
-
+  Future<void> _openTelegramSubscription() async {
     try {
-      final product = _iapService.products.firstWhere(
-        (p) => p.id == productId,
-      );
-
-      final success = await _iapService.purchaseProduct(product);
-
-      if (success && mounted) {
-        Navigator.pop(context);
+      // Open Telegram to @doniponi
+      const telegramUrl = 'https://t.me/doniponi';
+      
+      // Show loading
+      setState(() => _isLoading = true);
+      
+      // Try to open Telegram app first
+      final telegramAppUrl = 'tg://resolve?domain=doniponi';
+      
+      // Import url_launcher
+      // ignore: avoid_web_libraries_in_flutter
+      if (await canLaunchUrl(Uri.parse(telegramAppUrl))) {
+        await launchUrl(Uri.parse(telegramAppUrl));
+      } else if (await canLaunchUrl(Uri.parse(telegramUrl))) {
+        await launchUrl(Uri.parse(telegramUrl));
+      } else {
+        throw Exception('Cannot open Telegram');
+      }
+      
+      // Show success message
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('🎉 Premium activated successfully!'),
-            backgroundColor: DesignSystem.green600,
+            content: const Text('📱 Opening Telegram... Contact @doniponi for subscription'),
+            backgroundColor: DesignSystem.blue600,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12.r),
             ),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
+      
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Purchase failed: $e'),
+            content: Text('Failed to open Telegram: $e'),
             backgroundColor: DesignSystem.red500,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(

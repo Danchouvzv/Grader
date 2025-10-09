@@ -11,6 +11,7 @@ import '../../core/openai_service.dart';
 import '../../core/config/api_config.dart';
 import '../../core/services/profile_service.dart';
 import '../../core/services/firestore_service.dart';
+import '../../core/services/subscription_limit_service.dart';
 import '../../features/ielts/domain/entities/ielts_result.dart';
 import '../../features/ielts/domain/entities/ielts_speaking_part.dart';
 import '../../features/ielts/domain/usecases/manage_speaking_session.dart';
@@ -31,12 +32,14 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
   OpenAIService? _ai;
   ManageSpeakingSessionImpl? _sessionManager;
   ProfileService? _profileService;
+  SubscriptionLimitService? _limitService;
   
   // Lazy getters for services
   AudioRecorderService get recorder => _recorder ??= AudioRecorderService();
   OpenAIService get ai => _ai ??= OpenAIService(ApiConfig.openAiApiKey);
   ManageSpeakingSessionImpl get sessionManager => _sessionManager ??= ManageSpeakingSessionImpl();
   ProfileService get profileService => _profileService ??= ProfileService();
+  SubscriptionLimitService get limitService => _limitService ??= SubscriptionLimitService();
 
   @override
   void initState() {
@@ -136,6 +139,12 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
   }
 
   Future<void> _startRecording() async {
+    // Check subscription limits before starting
+    if (!await limitService.canStartSession()) {
+      _showSubscriptionLimitDialog();
+      return;
+    }
+
     try {
       final path = await recorder.start();
       setState(() {
@@ -144,6 +153,9 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
         _recordingSeconds = 0;
         _error = null;
       });
+      
+      // Record session start for limit tracking
+      await limitService.recordSessionStart();
       
       _startRecordingTimer();
       HapticFeedback.lightImpact();
@@ -286,6 +298,176 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
         ),
       ],
     );
+  }
+
+  void _showSubscriptionLimitDialog() async {
+    final subscriptionInfo = await limitService.getSubscriptionInfo();
+    final remainingSessions = subscriptionInfo['remainingSessions'] as int;
+    final trialDaysRemaining = subscriptionInfo['trialDaysRemaining'] as int;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.lock_rounded,
+              color: DesignSystem.amber500,
+              size: 24.w,
+            ),
+            SizedBox(width: 12.w),
+            Text(
+              'Session Limit Reached',
+              style: DesignSystem.headlineMedium.copyWith(
+                color: DesignSystem.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (trialDaysRemaining > 0) ...[
+              Text(
+                'You\'ve used all your free sessions for today.',
+                style: DesignSystem.bodyMedium.copyWith(
+                  color: DesignSystem.textSecondary,
+                ),
+              ),
+              SizedBox(height: 12.h),
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: DesignSystem.amber50,
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(
+                    color: DesignSystem.amber500.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.schedule_rounded,
+                      color: DesignSystem.amber600,
+                      size: 16.w,
+                    ),
+                    SizedBox(width: 8.w),
+                    Text(
+                      'Free trial: $trialDaysRemaining days remaining',
+                      style: DesignSystem.bodySmall.copyWith(
+                        color: DesignSystem.amber700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Text(
+                'Your free trial has expired.',
+                style: DesignSystem.bodyMedium.copyWith(
+                  color: DesignSystem.textSecondary,
+                ),
+              ),
+              SizedBox(height: 12.h),
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: DesignSystem.red50,
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(
+                    color: DesignSystem.red500.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: DesignSystem.red600,
+                      size: 16.w,
+                    ),
+                    SizedBox(width: 8.w),
+                    Text(
+                      'Upgrade to Premium for unlimited access',
+                      style: DesignSystem.bodySmall.copyWith(
+                        color: DesignSystem.red700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            SizedBox(height: 16.h),
+            Text(
+              'Premium features:',
+              style: DesignSystem.bodyMedium.copyWith(
+                color: DesignSystem.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            _buildSolutionItem(
+              icon: Icons.all_inclusive_rounded,
+              text: 'Unlimited practice sessions',
+            ),
+            SizedBox(height: 4.h),
+            _buildSolutionItem(
+              icon: Icons.analytics_rounded,
+              text: 'Advanced analytics & insights',
+            ),
+            SizedBox(height: 4.h),
+            _buildSolutionItem(
+              icon: Icons.star_rounded,
+              text: 'Premium topics & exercises',
+            ),
+            SizedBox(height: 4.h),
+            _buildSolutionItem(
+              icon: Icons.support_agent_rounded,
+              text: 'Priority support',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Maybe Later',
+              style: DesignSystem.bodyMedium.copyWith(
+                color: DesignSystem.textSecondary,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _navigateToSubscription();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: DesignSystem.blue600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+            ),
+            child: Text(
+              'Upgrade Now',
+              style: DesignSystem.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToSubscription() {
+    Navigator.pushNamed(context, '/subscription');
   }
 
   String _formatDuration(int seconds) {

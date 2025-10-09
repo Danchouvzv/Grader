@@ -1,0 +1,32 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E53935;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1976D2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F8F9FA;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main circle -->
+  <circle cx="60" cy="60" r="55" fill="url(#gradient)" stroke="white" stroke-width="2"/>
+  
+  <!-- AI Brain icon -->
+  <path d="M45 50 C45 45, 50 40, 60 40 C70 40, 75 45, 75 50 C75 55, 70 60, 60 60 C50 60, 45 55, 45 50 Z" fill="white" opacity="0.9"/>
+  
+  <!-- Neural network lines -->
+  <path d="M50 45 L55 50 M65 50 L70 45 M50 55 L55 50 M65 50 L70 55" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Central dot -->
+  <circle cx="60" cy="50" r="3" fill="white"/>
+  
+  <!-- Sparkle effect -->
+  <path d="M80 35 L82 37 L80 39 L78 37 Z" fill="white" opacity="0.8"/>
+  <path d="M40 25 L42 27 L40 29 L38 27 Z" fill="white" opacity="0.6"/>
+  
+  <!-- Modern "G" letter -->
+  <path d="M60 75 C55 75, 50 70, 50 65 C50 60, 55 55, 60 55 C65 55, 70 60, 70 65 L65 65 C65 62, 63 60, 60 60 C57 60, 55 62, 55 65 C55 68, 57 70, 60 70 L60 75 Z" fill="white" opacity="0.9"/>
+</svg>
