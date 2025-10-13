@@ -35,8 +35,10 @@ class DesignSystem {
   static const Color green50 = Color(0xFFECFDF5);
   
   /// Янтарные оттенки (для энергии и streak)
+  static const Color amber600 = Color(0xFFD97706);
   static const Color amber500 = Color(0xFFF59E0B);
   static const Color amber400 = Color(0xFFFBBF24);
+  static const Color amber50 = Color(0xFFFFFBEB);
   static const Color orange500 = Color(0xFFF97316);
   
   /// Фоны и поверхности

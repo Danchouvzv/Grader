@@ -200,6 +200,9 @@ class ProfileService {
       25: 'sessions_25',
       50: 'sessions_50',
       100: 'sessions_100',
+      200: 'sessions_200',
+      500: 'sessions_500',
+      1000: 'unstoppable',
     };
 
     for (final entry in sessionMilestones.entries) {
@@ -255,6 +258,63 @@ class ProfileService {
         icon: '💎',
         unlockedAt: DateTime.now(),
       ));
+    }
+
+    // 🎤 SPEAKING SKILL ACHIEVEMENTS
+    if (record.fluencyBand >= 8.0 && !existingTypes.contains('fluency_master')) {
+      final achievements = Achievement.getAllPossibleAchievements(userId);
+      final achievement = achievements.firstWhere((a) => a.achievementType == 'fluency_master');
+      achievementsToUnlock.add(achievement.copyWith(unlockedAt: DateTime.now()));
+    }
+
+    if (record.lexicalBand >= 8.0 && !existingTypes.contains('vocabulary_expert')) {
+      final achievements = Achievement.getAllPossibleAchievements(userId);
+      final achievement = achievements.firstWhere((a) => a.achievementType == 'vocabulary_expert');
+      achievementsToUnlock.add(achievement.copyWith(unlockedAt: DateTime.now()));
+    }
+
+    if (record.grammarBand >= 8.0 && !existingTypes.contains('grammar_guru')) {
+      final achievements = Achievement.getAllPossibleAchievements(userId);
+      final achievement = achievements.firstWhere((a) => a.achievementType == 'grammar_guru');
+      achievementsToUnlock.add(achievement.copyWith(unlockedAt: DateTime.now()));
+    }
+
+    if (record.pronunciationBand >= 8.0 && !existingTypes.contains('pronunciation_pro')) {
+      final achievements = Achievement.getAllPossibleAchievements(userId);
+      final achievement = achievements.firstWhere((a) => a.achievementType == 'pronunciation_pro');
+      achievementsToUnlock.add(achievement.copyWith(unlockedAt: DateTime.now()));
+    }
+
+    // 🎯 SPECIAL ACHIEVEMENTS
+    final currentHour = DateTime.now().hour;
+    if (currentHour < 7 && !existingTypes.contains('early_bird')) {
+      final achievements = Achievement.getAllPossibleAchievements(userId);
+      final achievement = achievements.firstWhere((a) => a.achievementType == 'early_bird');
+      achievementsToUnlock.add(achievement.copyWith(unlockedAt: DateTime.now()));
+    }
+
+    if (currentHour >= 23 && !existingTypes.contains('night_owl')) {
+      final achievements = Achievement.getAllPossibleAchievements(userId);
+      final achievement = achievements.firstWhere((a) => a.achievementType == 'night_owl');
+      achievementsToUnlock.add(achievement.copyWith(unlockedAt: DateTime.now()));
+    }
+
+    // 🎪 FUN ACHIEVEMENTS
+    if (record.overallBand == 7.0 && !existingTypes.contains('lucky_seven')) {
+      final achievements = Achievement.getAllPossibleAchievements(userId);
+      final achievement = achievements.firstWhere((a) => a.achievementType == 'lucky_seven');
+      achievementsToUnlock.add(achievement.copyWith(unlockedAt: DateTime.now()));
+    }
+
+    // 🏅 ULTIMATE ACHIEVEMENTS
+    if (record.fluencyBand >= 9.0 && 
+        record.lexicalBand >= 9.0 && 
+        record.grammarBand >= 9.0 && 
+        record.pronunciationBand >= 9.0 && 
+        !existingTypes.contains('ielts_god')) {
+      final achievements = Achievement.getAllPossibleAchievements(userId);
+      final achievement = achievements.firstWhere((a) => a.achievementType == 'ielts_god');
+      achievementsToUnlock.add(achievement.copyWith(unlockedAt: DateTime.now()));
     }
 
     // Unlock all new achievements

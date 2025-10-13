@@ -359,7 +359,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                     Text(
                       'Free trial: $trialDaysRemaining days remaining',
                       style: DesignSystem.bodySmall.copyWith(
-                        color: DesignSystem.amber700,
+                        color: DesignSystem.amber600,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -394,7 +394,7 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
                     Text(
                       'Upgrade to Premium for unlimited access',
                       style: DesignSystem.bodySmall.copyWith(
-                        color: DesignSystem.red700,
+                        color: DesignSystem.red600,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
