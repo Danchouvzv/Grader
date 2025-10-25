@@ -40,8 +40,8 @@ class StatCard extends StatelessWidget {
             boxShadow: DesignSystem.cardShadow,
           ),
           padding: EdgeInsets.symmetric(
-            horizontal: DesignSystem.space12.w,
-            vertical: DesignSystem.space16.h,
+            horizontal: DesignSystem.space16.w,
+            vertical: DesignSystem.space20.h,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -60,16 +60,16 @@ class StatCard extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
-                child: Icon(icon, color: color, size: 22.w),
+                child: Icon(icon, color: color, size: 24.w),
               ),
-              SizedBox(height: DesignSystem.space8.h),
+              SizedBox(height: DesignSystem.space12.h),
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     value,
                     style: DesignSystem.headlineMedium.copyWith(
-                      fontSize: 20.sp,
+                      fontSize: 22.sp,
                       color: DesignSystem.textPrimary,
                       fontWeight: FontWeight.w800,
                       height: 1.2,
@@ -79,18 +79,18 @@ class StatCard extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(height: DesignSystem.space4.h),
+              SizedBox(height: DesignSystem.space8.h),
               Text(
                 label,
                 style: DesignSystem.caption.copyWith(
                   color: DesignSystem.textSecondary,
-                  fontSize: 11.sp,
+                  fontSize: 13.sp,
                   height: 1.3,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.2,
                 ),
                 textAlign: TextAlign.center,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ],

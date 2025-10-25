@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/services/vocabulary_analysis_service.dart';
 
 class VocabularyAnalysisLegend extends StatelessWidget {
   const VocabularyAnalysisLegend({super.key});

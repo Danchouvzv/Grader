@@ -301,11 +301,11 @@ class AppTheme {
         space: 1,
       ),
       
-      // Icon Theme
+      // Icon Theme - упрощенные настройки
       iconTheme: const IconThemeData(
-      color: AppColors.textSecondary,
-      size: 24,
-    ),
+        color: Colors.black87,
+        size: 24,
+      ),
     
       // Text Theme
       textTheme: const TextTheme(

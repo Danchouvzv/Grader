@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui';
+import 'package:flutter/rendering.dart';
+import 'package:intl/intl.dart';
 import '../../shared/themes/app_colors.dart';
 import '../../shared/themes/app_typography.dart';
 import '../widgets/enhanced_results_widget.dart';
@@ -151,17 +158,311 @@ class _EnhancedIeltsResultsPageState extends State<EnhancedIeltsResultsPage>
     });
   }
 
-  void _onShare() {
+  void _onShare() async {
     HapticFeedback.lightImpact();
-    // Implement share functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Share functionality coming soon'),
-        backgroundColor: AppColors.info,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Generate share content
+      final shareContent = await _generateShareContent();
+      
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+      
+      // Show share options
+      if (mounted) {
+        _showShareOptions(shareContent);
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.pop(context);
+      
+      // Show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to prepare share content: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<Map<String, String>> _generateShareContent() async {
+    final assessment = widget.assessment;
+    final now = DateTime.now();
+    final dateFormat = DateFormat('MMM dd, yyyy');
+    
+    // Generate text content
+    final textContent = _generateTextContent(assessment, dateFormat.format(now));
+    
+    // Generate image content (screenshot)
+    final imagePath = await _captureScreenshot();
+    
+    return {
+      'text': textContent,
+      'image': imagePath,
+    };
+  }
+
+  String _generateTextContent(IeltsResult assessment, String date) {
+    final overallBand = assessment.overallBand.toStringAsFixed(1);
+    final fluency = assessment.bands['fluency']?.toStringAsFixed(1) ?? '0.0';
+    final coherence = assessment.bands['coherence']?.toStringAsFixed(1) ?? '0.0';
+    final vocabulary = assessment.bands['vocabulary']?.toStringAsFixed(1) ?? '0.0';
+    final grammar = assessment.bands['grammar']?.toStringAsFixed(1) ?? '0.0';
+    final pronunciation = assessment.bands['pronunciation']?.toStringAsFixed(1) ?? '0.0';
+    
+    return '''
+🎯 IELTS Speaking Assessment Results
+📅 $date
+
+🏆 Overall Band Score: $overallBand/9.0
+
+📊 Detailed Scores:
+• Fluency & Coherence: $fluency/9.0
+• Lexical Resource: $vocabulary/9.0
+• Grammatical Range: $grammar/9.0
+• Pronunciation: $pronunciation/9.0
+
+💡 Key Feedback:
+${assessment.summary.isNotEmpty ? assessment.summary : 'Great job! Keep practicing to improve your English skills.'}
+
+🚀 Practice more with Grader.AI to achieve your target band score!
+
+#IELTS #EnglishLearning #GraderAI #SpeakingPractice
+''';
+  }
+
+  Future<String> _captureScreenshot() async {
+    try {
+      // Get the current page content
+      final RenderRepaintBoundary boundary = _pageController.position.context.storageContext
+          .findRenderObject() as RenderRepaintBoundary;
+      
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ImageByteFormat.png);
+      final pngBytes = byteData!.buffer.asUint8List();
+      
+      // Save to temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/ielts_results_${DateTime.now().millisecondsSinceEpoch}.png');
+      await file.writeAsBytes(pngBytes);
+      
+      return file.path;
+    } catch (e) {
+      // Fallback: create a simple text-based image
+      return await _createTextImage();
+    }
+  }
+
+  Future<String> _createTextImage() async {
+    // This is a fallback method - in a real implementation, you'd use a package like image
+    // to create a proper image with the results
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/ielts_results_text_${DateTime.now().millisecondsSinceEpoch}.txt');
+    await file.writeAsString(_generateTextContent(widget.assessment, DateFormat('MMM dd, yyyy').format(DateTime.now())));
+    return file.path;
+  }
+
+  void _showShareOptions(Map<String, String> content) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Text(
+                    'Share Your Results',
+                    style: AppTypography.headlineSmall.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Choose how you want to share your IELTS results',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Share options
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildShareOption(
+                          icon: Icons.text_fields_rounded,
+                          label: 'Text Only',
+                          onTap: () => _shareText(content['text']!),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildShareOption(
+                          icon: Icons.image_rounded,
+                          label: 'With Screenshot',
+                          onTap: () => _shareWithImage(content),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Social media options
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildShareOption(
+                          icon: Icons.copy_rounded,
+                          label: 'Copy Text',
+                          onTap: () => _copyToClipboard(content['text']!),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildShareOption(
+                          icon: Icons.more_horiz_rounded,
+                          label: 'More Options',
+                          onTap: () => _shareWithImage(content),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildShareOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.textTertiary),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: AppColors.primary,
+              size: 24,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _shareText(String text) async {
+    try {
+      await Share.share(
+        text,
+        subject: 'My IELTS Speaking Results',
+      );
+    } catch (e) {
+      _showError('Failed to share text: $e');
+    }
+  }
+
+  void _shareWithImage(Map<String, String> content) async {
+    try {
+      await Share.shareXFiles(
+        [XFile(content['image']!)],
+        text: content['text'],
+        subject: 'My IELTS Speaking Results',
+      );
+    } catch (e) {
+      _showError('Failed to share with image: $e');
+    }
+  }
+
+  void _copyToClipboard(String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Results copied to clipboard!'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (e) {
+      _showError('Failed to copy to clipboard: $e');
+    }
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 
   void _onTryAgain() {

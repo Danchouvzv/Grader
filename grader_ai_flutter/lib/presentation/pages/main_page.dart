@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../shared/themes/app_colors.dart';
-import '../../shared/themes/app_typography.dart';
+import '../../shared/themes/app_theme.dart';
 import 'enhanced_ielts_speaking_page.dart';
 import 'profile_page.dart';
 
@@ -25,8 +24,8 @@ class _MainPageState extends State<MainPage> with TickerProviderStateMixin {
 
   final List<BottomNavigationItem> _navItems = [
     BottomNavigationItem(
-      icon: Icons.record_voice_over_rounded,
-      activeIcon: Icons.record_voice_over,
+      icon: Icons.mic_outlined,
+      activeIcon: Icons.mic,
       label: 'IELTS Speaking',
       gradient: LinearGradient(
         colors: [AppColors.primary, AppColors.primaryLight],
@@ -35,7 +34,7 @@ class _MainPageState extends State<MainPage> with TickerProviderStateMixin {
       ),
     ),
     BottomNavigationItem(
-      icon: Icons.person_outline_rounded,
+      icon: Icons.person_outline,
       activeIcon: Icons.person,
       label: 'Profile',
       gradient: LinearGradient(

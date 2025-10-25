@@ -4,8 +4,8 @@
   "supportURL": "https://grader.ai/support",
   "privacyURL": "https://grader.ai/privacy",
   "termsURL": "https://grader.ai/terms",
-  "keywords": ["IELTS", "Speaking", "career", "RIASEC", "education", "language", "practice", "assessment"],
-  "description": "AI-powered IELTS Speaking practice with instant feedback and career guidance using RIASEC methodology.",
+  "keywords": ["IELTS", "Speaking", "English", "Practice", "AI", "Education", "Language", "Assessment"],
+  "description": "Master IELTS Speaking with AI-powered feedback. Practice with real exam topics, get instant band scores, and improve your English speaking skills with personalized insights.",
   "category": "Education",
   "ageRating": "4+",
   "languages": ["en", "ru"]

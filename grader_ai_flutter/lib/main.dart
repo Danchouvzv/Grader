@@ -6,7 +6,6 @@ import 'core/di/injection.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io' show Platform;
-import 'features/career/presentation/bloc/career_bloc.dart';
 import 'features/ielts/presentation/bloc/ielts_bloc.dart';
 import 'presentation/pages/splash_screen.dart';
 import 'presentation/pages/main_page.dart';
@@ -18,14 +17,40 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  try {
+    // Initialize Firebase only once
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      print('✅ Firebase initialized successfully');
+    } else {
+      print('ℹ️ Firebase already initialized, skipping');
+    }
+  } catch (e) {
+    if (e.toString().contains('duplicate-app')) {
+      print('ℹ️ Firebase already initialized (duplicate-app error is normal)');
+    } else {
+      print('❌ Firebase initialization failed: $e');
+    }
+    // Continue without Firebase for now
+  }
 
-  // Initialize IAP
-  await IAPService().initialize();
+  try {
+    // Initialize IAP
+    await IAPService().initialize();
+    print('✅ IAP initialized successfully');
+  } catch (e) {
+    print('❌ IAP initialization failed: $e');
+    // Continue without IAP for now
+  }
 
-  // Initialize dependencies
-  await configureDependencies();
+  try {
+    // Initialize dependencies
+    await configureDependencies();
+    print('✅ Dependencies configured successfully');
+  } catch (e) {
+    print('❌ Dependencies configuration failed: $e');
+    // Continue without some dependencies
+  }
   
   runApp(const GraderAIApp());
 }
@@ -44,9 +69,6 @@ class GraderAIApp extends StatelessWidget {
           providers: [
             BlocProvider<IeltsBloc>(
               create: (context) => getIt<IeltsBloc>(),
-            ),
-            BlocProvider<CareerBloc>(
-              create: (context) => getIt<CareerBloc>(),
             ),
           ],
           child: MaterialApp(

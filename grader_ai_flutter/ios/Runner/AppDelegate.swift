@@ -9,8 +9,10 @@ import GoogleSignIn
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Configure Firebase
-    FirebaseApp.configure()
+    // Configure Firebase (only if not already configured)
+    if FirebaseApp.app() == nil {
+      FirebaseApp.configure()
+    }
     
     // Configure Google Sign-In
     if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),

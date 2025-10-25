@@ -7,6 +7,7 @@ import '../widgets/gradient_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/utils/network_utils.dart';
 import 'sign_in_page.dart';
 import 'main_page.dart';
 
@@ -716,6 +717,20 @@ class _SignUpPageState extends State<SignUpPage>
     setState(() { _isLoading = true; });
 
     try {
+      // Check internet connectivity first
+      final hasInternet = await NetworkUtils().hasInternetConnection();
+      if (!hasInternet) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No internet connection. Please check your network and try again.'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+          ),
+        );
+        return;
+      }
+
       // Firebase Auth: create user
       final AuthService auth = AuthService();
       final UserCredential cred = await auth.signUpWithEmail(
@@ -726,13 +741,19 @@ class _SignUpPageState extends State<SignUpPage>
       // Optionally store basic profile in Firestore
       final User? user = cred.user;
       if (user != null) {
+        // Update display name
+        await user.updateDisplayName(_nameController.text.trim());
+        
+        // Store profile in Firestore
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .set({
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
+          'username': _nameController.text.trim().toLowerCase().replaceAll(' ', ''),
           'createdAt': FieldValue.serverTimestamp(),
+          'lastActiveAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
 
@@ -767,24 +788,48 @@ class _SignUpPageState extends State<SignUpPage>
       );
     } on FirebaseAuthException catch (e) {
       String message = 'Registration failed';
-      if (e.code == 'email-already-in-use') message = 'Email already in use';
-      if (e.code == 'invalid-email') message = 'Invalid email address';
-      if (e.code == 'weak-password') message = 'Weak password';
+      switch (e.code) {
+        case 'email-already-in-use':
+          message = 'This email is already registered. Please sign in instead.';
+          break;
+        case 'invalid-email':
+          message = 'Please enter a valid email address.';
+          break;
+        case 'weak-password':
+          message = 'Password should be at least 6 characters long.';
+          break;
+        case 'operation-not-allowed':
+          message = 'Email registration is not enabled. Please contact support.';
+          break;
+        case 'internal-error':
+          message = 'Network error. Please check your internet connection and try again.';
+          break;
+        default:
+          message = 'Registration failed: ${e.message ?? 'Unknown error occurred'}';
+      }
       if (!mounted) return;
       setState(() { _isLoading = false; });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
           backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() { _isLoading = false; });
+      String errorMessage = 'Registration failed. Please try again later.';
+      if (e.toString().contains('network') || e.toString().contains('connection')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Registration error: $e'),
+          content: Text(errorMessage),
           backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
         ),
       );
     }

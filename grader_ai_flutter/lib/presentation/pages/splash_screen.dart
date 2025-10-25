@@ -1,15 +1,32 @@
 import 'dart:async';
+import 'dart:math';
+import 'dart:ui'; // Для ImageFilter
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Для SystemUiOverlayStyle
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../shared/themes/app_colors.dart';
-import '../../shared/themes/app_typography.dart';
 import '../../core/services/firestore_service.dart';
 import 'main_page.dart';
 import 'welcome_page.dart';
 import 'registration_page.dart';
 import 'signin_page.dart';
+
+// Particle data class для оптимизации
+class Particle {
+  final double startX;
+  final double startY;
+  final double size;
+  final int duration;
+  
+  const Particle({
+    required this.startX,
+    required this.startY,
+    required this.size,
+    required this.duration,
+  });
+}
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,116 +37,325 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
-  late AnimationController _logoController;
-  late AnimationController _textController;
-  late AnimationController _pulseController;
-  late Animation<double> _logoAnimation;
-  late Animation<double> _textAnimation;
-  late Animation<double> _pulseAnimation;
   
-  bool _isLoading = false;
+  // Safe ScreenUtil functions to prevent NaN errors
+  double safeHeight(double value) {
+    final result = value.h;
+    return result.isNaN ? value : result;
+  }
+
+  double safeWidth(double value) {
+    final result = value.w;
+    return result.isNaN ? value : result;
+  }
+
+  double safeSp(double value) {
+    final result = value.sp;
+    return result.isNaN ? value : result;
+  }
+
+  double safeRadius(double value) {
+    final result = value.r;
+    return result.isNaN ? value : result;
+  }
+  
+  // Safe opacity function to prevent invalid values
+  double safeOpacity(double value) {
+    if (value.isNaN) return 0.0;
+    if (value < 0.0) return 0.0;
+    if (value > 1.0) return 1.0;
+    return value;
+  }
+  late AnimationController _logoController;
+  late AnimationController _particlesController;
+  late AnimationController _pulseController;
+  late AnimationController _buttonController;
+  late AnimationController _shimmerController;
+  
+  late Animation<double> _logoScaleAnimation;
+  late Animation<double> _logoOpacityAnimation;
+  late Animation<double> _textSlideAnimation;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _buttonOpacityAnimation;
+  late Animation<double> _buttonSlideAnimation;
+  
+  bool _hasNavigated = false;
+  bool _isChecking = true;
+  bool _showRetry = false;
+  String? _lastError;
+  
+  // Фиксированные частицы для стабильности
+  late final List<Particle> _particles;
 
   @override
   void initState() {
     super.initState();
+    _initializeParticles();
     _initializeAnimations();
+    _checkAuthAndNavigate();
+  }
+
+  void _initializeParticles() {
+    final random = Random(42); // Фиксированный seed
+    _particles = List.generate(8, (index) { // 6-8 мягких частиц
+      return Particle(
+        startX: random.nextDouble(),
+        startY: random.nextDouble(),
+        size: 1.4 + random.nextDouble() * 1.2, // Меньший размер
+        duration: 28 + random.nextInt(18), // Медленное движение
+      );
+    });
   }
 
   void _initializeAnimations() {
     _logoController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1400),
       vsync: this,
     );
     
-    _textController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+    _logoScaleAnimation = Tween<double>(begin: 0.88, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _logoController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    
+    _logoOpacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _logoController,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
+      ),
+    );
+    
+    // Add safety check for opacity values
+    _logoOpacityAnimation.addListener(() {
+      if (_logoOpacityAnimation.value.isNaN || 
+          _logoOpacityAnimation.value < 0.0 || 
+          _logoOpacityAnimation.value > 1.0) {
+        print('⚠️ Invalid logo opacity: ${_logoOpacityAnimation.value}');
+      }
+    });
+    
+    _textSlideAnimation = Tween<double>(begin: 20.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _logoController,
+        curve: const Interval(0.4, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+    
+    _particlesController = AnimationController(
+      duration: const Duration(seconds: 20),
       vsync: this,
     );
+    _particlesController.repeat();
     
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-
-    _logoAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoController,
-      curve: Curves.easeOutBack,
-    ));
-
-    _textAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _textController,
-      curve: Curves.easeOut,
-    ));
-
-    _pulseAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.1,
-    ).animate(CurvedAnimation(
+    _pulseController.repeat(reverse: true);
+    
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.03).animate(
+      CurvedAnimation(
       parent: _pulseController,
       curve: Curves.easeInOut,
-    ));
+      ),
+    );
 
-    // Start animations with mounted check
+    // Button entrance animations
+    _buttonController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _buttonOpacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _buttonController, curve: Curves.easeOut),
+    );
+    _buttonSlideAnimation = Tween<double>(begin: 20.0, end: 0.0).animate(
+      CurvedAnimation(parent: _buttonController, curve: Curves.easeOutCubic),
+    );
+
+    // Shimmer for CTA
+    _shimmerController = AnimationController(
+      duration: const Duration(milliseconds: 2500),
+      vsync: this,
+    )..repeat();
+
+
     if (mounted) {
       _logoController.forward();
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          _textController.forward();
-        }
+      // Start buttons a bit later for staged entrance
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) _buttonController.forward();
       });
     }
-    _pulseController.repeat(reverse: true);
   }
 
+  Future<void> _checkAuthAndNavigate() async {
+    if (_hasNavigated) return;
+    
+    // Даём UI время дорисоваться
+    await Future.microtask(() {});
+    
+    try {
+      if (mounted) setState(() { _isChecking = true; _showRetry = false; _lastError = null; });
+      // Ждём инициализации Firebase Auth
+      await FirebaseAuth.instance.authStateChanges().first.timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => null,
+      );
+      
+      // Минимум 2.5 секунды для UX
+      await Future.delayed(const Duration(milliseconds: 2500));
+      
+      if (!mounted) return;
+      
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (!mounted) return;
+      
+      final user = FirebaseAuth.instance.currentUser;
+      
+      if (user != null) {
+         // Retry logic для Firestore
+         final userData = await _retryOperation(
+           () => FirestoreService.instance.getUserProfile(),
+           retries: 2,
+         );
+        
+        if (!mounted) return;
+        
+        if (userData != null && userData['isRegistrationComplete'] == true) {
+          // Инициализируем данные с retry
+          await _retryOperation(
+            () => FirestoreService.instance.ensureUserBootstrap(),
+            retries: 2,
+          );
+          
+          if (!mounted) return;
+          if (mounted) setState(() { _isChecking = false; });
+          _navigateToMain();
+        } else {
+          if (mounted) setState(() { _isChecking = false; });
+          _navigateToRegistration(user: user);
+        }
+       } else {
+         // Остаемся на splash screen как на welcome screen
+         if (mounted) setState(() { _isChecking = false; });
+       }
+    } catch (e) {
+      debugPrint('⚠️ Splash navigation error: $e');
+      
+      if (!mounted) return;
+      
+       // Показываем ошибку пользователю и остаемся на splash
+       _lastError = 'Connection issue. Please check your internet.';
+       _showErrorAndNavigate(
+         _lastError!,
+       );
+       setState(() {
+         _isChecking = false;
+         _showRetry = true;
+       });
+    }
+  }
+
+  Future<T?> _retryOperation<T>(
+    Future<T> Function() operation, {
+    int retries = 2,
+  }) async {
+    for (var i = 0; i < retries; i++) {
+      try {
+        debugPrint('🔁 Retry operation attempt ${i + 1}/$retries');
+        return await operation();
+      } catch (e) {
+        if (i == retries - 1) rethrow;
+        await Future.delayed(Duration(milliseconds: 300 * (i + 1)));
+      }
+    }
+    return null;
+  }
+
+  void _showErrorAndNavigate(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: EdgeInsets.all(16),
+      ),
+    );
+    
+    // Остаемся на splash screen как на welcome screen
+    // Не переходим никуда, показываем ошибку и остаемся здесь
+  }
 
   void _navigateToMain() {
+    if (!mounted || _hasNavigated) return;
+    _hasNavigated = true;
+    
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => const MainPage(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
+              child: child,
+            ),
+          );
         },
-        transitionDuration: const Duration(milliseconds: 500),
+        transitionDuration: const Duration(milliseconds: 900), // Увеличили на 300ms
       ),
     );
   }
 
   void _navigateToWelcome() {
+    if (!mounted || _hasNavigated) return;
+    _hasNavigated = true;
+    
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => const WelcomePage(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, 0.05),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+          );
         },
-        transitionDuration: const Duration(milliseconds: 500),
+        transitionDuration: const Duration(milliseconds: 900), // Увеличили на 300ms
       ),
     );
   }
 
-  void _navigateToRegistration({String? authMethod, User? user}) {
+  void _navigateToRegistration({User? user}) {
+    if (!mounted || _hasNavigated) return;
+    _hasNavigated = true;
+    
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => RegistrationPage(
-          authMethod: authMethod,
-          user: user,
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) => RegistrationPage(user: user),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
-        transitionDuration: const Duration(milliseconds: 500),
+        transitionDuration: const Duration(milliseconds: 900), // Увеличили на 300ms
       ),
     );
   }
-
 
   // Sign In to existing account
   Future<void> _signInToExistingAccount() async {
@@ -154,366 +380,405 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-
-  Future<void> _initializeUserData() async {
-    try {
-      // Initialize Firestore user data
-      await FirestoreService.instance.ensureUserBootstrap();
-    } catch (e) {
-      print('Warning: Failed to initialize user data: $e');
-      // Don't block the user from proceeding, just log the error
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.r),
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _logoController.dispose();
-    _textController.dispose();
+    _particlesController.dispose();
     _pulseController.dispose();
+    _buttonController.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light, // белые иконки
+      child: Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.white,
-              const Color(0xFFF8FAFC),
-              const Color(0xFFF1F5F9),
+              Color(0xFF091524), // deep navy
+              Color(0xFF0E2036), // navy
+              Color(0xFF171A3D), // легкий фиолет
+              Color(0xFF220C2F), // красно-фиолет (низ/право)
             ],
-            stops: const [0.0, 0.3, 1.0],
+            stops: [0.0, 0.4, 0.7, 1.0],
           ),
         ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
+        child: Stack(
+          children: [
+            _buildParticlesBackground(),
+            
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // subtle loading ring under logo when checking
+                  if (_isChecking)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white.withOpacity(0.85),
+                          ),
+                        ),
+                      ),
+                    ),
+                  _buildAnimatedLogo(),
+                  SizedBox(height: 36), // Logo → Title
+                   _buildAnimatedText(),
+                   SizedBox(height: 12), // Title → Tagline
+                   _buildTagline(),
+                   SizedBox(height: 6), // Tagline → Sub
+                   _buildSubTagline(),
+                   SizedBox(height: 48), // Sub → Button
+                   _buildAuthButtons(),
+                  if (_showRetry)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() { _showRetry = false; _isChecking = true; });
+                          _checkAuthAndNavigate();
+                        },
+                        icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                        label: Text(
+                          'Retry',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w),
-                child: Column(
-                  children: [
-                    SizedBox(height: 80.h),
-                    
-                    // Creative Logo Section
-                    AnimatedBuilder(
-                      animation: _logoAnimation,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+  Widget _buildParticlesBackground() {
+    return AnimatedBuilder(
+      animation: _particlesController,
                       builder: (context, child) {
-                        return Transform.scale(
-                          scale: _logoAnimation.value,
-                          child: AnimatedBuilder(
-                            animation: _pulseAnimation,
-                            builder: (context, child) {
-                              return Transform.scale(
-                                scale: _pulseAnimation.value,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    // Outer Glow Ring
-                                    Container(
-                                      width: 140.w,
-                                      height: 140.h,
+        return Stack(
+          children: _particles.asMap().entries.map((entry) {
+            final index = entry.key;
+            final particle = entry.value;
+            
+            final progress = (_particlesController.value + (index / _particles.length)) % 1.0;
+            final speedMultiplier = 0.7 + (index % 3) * 0.15;
+            final x = particle.startX + sin(progress * pi * 2 * (0.6 + index % 3 * 0.2)) * 0.08;
+            final y = (particle.startY + progress * speedMultiplier) % 1.15 - 0.075;
+            
+            return Positioned(
+              left: MediaQuery.of(context).size.width * x.clamp(0.0, 1.0),
+              top: MediaQuery.of(context).size.height * y,
+              child: Transform.scale(
+                scale: 1 + sin(progress * pi * 2) * 0.02, // лёгкая пульсация
+                child: Opacity(
+                  opacity: (0.65 - progress * 0.45).clamp(0.15, 0.65), // Успокоенная прозрачность
+                  child: Container(
+                    width: particle.size,
+                    height: particle.size,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         gradient: RadialGradient(
-                                          colors: [
-                                            Colors.white.withOpacity(0.3),
+                        colors: index.isEven
+                            ? [
+                                const Color(0xFF2196F3).withOpacity(0.25), // синие
+                                Colors.transparent,
+                              ]
+                            : [
+                                const Color(0xFFE53935).withOpacity(0.25), // красные
                                             Colors.transparent,
                                           ],
                                         ),
                                       ),
                                     ),
-                                    // Main Logo Container
-                                    Container(
-                                      width: 120.w,
-                                      height: 120.h,
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildAnimatedLogo() {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_logoController, _pulseController]),
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _logoScaleAnimation.value * _pulseAnimation.value,
+          child: Opacity(
+            opacity: safeOpacity(_logoOpacityAnimation.value),
+            child: Container(
+              width: 120,
+              height: 120,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        gradient: LinearGradient(
+                gradient: const LinearGradient(
                                           colors: [
-                                            Colors.white,
-                                            Colors.white.withOpacity(0.9),
+                    Color(0xFF2196F3), // яркий синий
+                    Color(0xFFE53935), // яркий красный
                                           ],
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
                                         ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(0.2),
-                                            blurRadius: 30,
-                                            offset: const Offset(0, 15),
-                                            spreadRadius: 0,
+                    color: const Color(0xFF2196F3).withOpacity(0.22),
+                    blurRadius: 34,
+                    offset: const Offset(-10, -8),
                                           ),
                                           BoxShadow(
-                                            color: Colors.white.withOpacity(0.3),
-                                            blurRadius: 20,
-                                            offset: const Offset(0, -5),
-                                            spreadRadius: 0,
-                                          ),
-                                        ],
-                                      ),
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          // Background Circle
-                                          Container(
-                                            width: 100.w,
-                                            height: 100.h,
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                                colors: [
-                                                  const Color(0xFF1976D2),
-                                                  const Color(0xFFE53935),
-                                                ],
-                                              ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          // AI Brain Icon
-                                          Icon(
-                                            Icons.psychology_rounded,
+                    color: const Color(0xFFE53935).withOpacity(0.28),
+                    blurRadius: 36,
+                    offset: const Offset(10, 8),
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 2,
+                ),
+              ),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
                                             color: Colors.white,
-                                            size: 50.w,
-                                          ),
-                                          // Floating dots
-                                          Positioned(
-                                            top: 15.h,
-                                            right: 15.w,
-                                            child: Container(
-                                              width: 8.w,
-                                              height: 8.h,
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(0.8),
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom: 20.h,
-                                            left: 10.w,
-                                            child: Container(
-                                              width: 6.w,
-                                              height: 6.h,
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(0.6),
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                size: 38,
+              ),
+            ),
                                 ),
                               );
                             },
-                          ),
-                        );
-                      },
-                    ),
-                    
-                    SizedBox(height: 60.h),
-                    
-                    // Creative App Name
-                    AnimatedBuilder(
-                      animation: _textAnimation,
+    );
+  }
+
+  Widget _buildAnimatedText() {
+    return AnimatedBuilder(
+      animation: _logoController,
                       builder: (context, child) {
-                        return Opacity(
-                          opacity: _textAnimation.value,
-                          child: Transform.translate(
-                            offset: Offset(0, 20 * (1 - _textAnimation.value)),
-                            child: Column(
-                              children: [
-                                // App Name with Creative Typography
-                                ShaderMask(
-                                  shaderCallback: (bounds) => LinearGradient(
+        return Transform.translate(
+          offset: Offset(0, _textSlideAnimation.value),
+          child: Opacity(
+            opacity: safeOpacity(_logoOpacityAnimation.value),
+            child: ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
                                     colors: [
-                                      Colors.white,
-                                      Colors.white.withOpacity(0.8),
+                  Color(0xFF2196F3),
+                  Color(0xFFE53935),
                                     ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
                                   ).createShader(bounds),
-                                  child: Text(
+              child: const Text(
                                     'Grader.AI',
                                     style: TextStyle(
-                                      fontSize: 42.sp,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 2.0,
-                                      color: const Color(0xFF1a1a2e),
+                  color: Colors.white,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                ),
                                     ),
                                   ),
                                 ),
-                                
-                                SizedBox(height: 16.h),
-                                
-                                // Creative Tagline Container
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1976D2).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(25.r),
-                                    border: Border.all(
-                                      color: const Color(0xFF1976D2).withOpacity(0.2),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'AI-Powered IELTS Speaking',
-                                    textAlign: TextAlign.center,
-                                    style: AppTypography.titleMedium.copyWith(
-                                      color: const Color(0xFF1976D2),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 16.sp,
-                                      letterSpacing: 0.3,
+        );
+      },
+    );
+  }
+
+  Widget _buildTagline() {
+    return AnimatedBuilder(
+      animation: _logoController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _textSlideAnimation.value),
+          child: Opacity(
+            opacity: safeOpacity(_logoOpacityAnimation.value * 0.9),
+            child: Text(
+              'Speak. Improve. Achieve.',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
                                     ),
                                   ),
                                 ),
-                                
-                                SizedBox(height: 8.h),
-                                
-                                // Subtitle
-                                Text(
-                                  'Master English with AI',
-                                  style: AppTypography.bodyMedium.copyWith(
-                                    color: const Color(0xFF64748b),
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                                
-                              ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSubTagline() {
+    return AnimatedBuilder(
+      animation: _logoController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _textSlideAnimation.value * 0.5),
+          child: Opacity(
+            opacity: safeOpacity(_logoOpacityAnimation.value * 0.8),
+            child: Text(
+              'Your AI-Powered English Journey',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
                             ),
                           ),
                         );
                       },
-                    ),
-                    
-                    SizedBox(height: 80.h),
-                    
-                    // Creative Auth Buttons
-                    Column(
+    );
+  }
+
+  Widget _buildAuthButtons() {
+    return AnimatedBuilder(
+      animation: _logoController,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _logoOpacityAnimation.value,
+          child: Column(
                       children: [
-                        // Email Registration - Creative Button
+              // Get Started Button (premium с glow эффектами)
+              Stack(
+                children: [
                         Container(
-                          width: double.infinity,
-                          height: 64.h,
+                    width: 340.w, // Фиксированная ширина как на скрине
+                    height: 62.h, // Высота кнопки
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
+                      // 1. ГЛАВНЫЙ ГРАДИЕНТ (синий → красный)
+                      gradient: const LinearGradient(
                               colors: [
-                                Colors.white,
-                                Colors.white.withOpacity(0.95),
+                          Color(0xFF2563EB), // Насыщенный синий
+                          Color(0xFF7C3AED), // Фиолетовый (промежуточный)
+                          Color(0xFFEF4444), // Насыщенный красный
                               ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                        stops: [0.0, 0.5, 1.0],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
                             ),
-                            borderRadius: BorderRadius.circular(32.r),
+                      borderRadius: BorderRadius.circular(31.r), // Полностью закругленная
+                      
+                      // 2. ВНЕШНЯЯ ТЕНЬ (glow эффект)
                             boxShadow: [
+                        // Красное свечение снизу
+                        BoxShadow(
+                          color: const Color(0xFFEF4444).withOpacity(0.5),
+                          blurRadius: 24,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 8),
+                        ),
+                        // Синее свечение сверху
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.3),
+                          blurRadius: 16,
+                          spreadRadius: -4,
+                          offset: const Offset(0, -4),
+                        ),
+                        // Общий depth эффект
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
+                          color: Colors.black.withOpacity(0.3),
                                 blurRadius: 20,
                                 offset: const Offset(0, 10),
-                                spreadRadius: 0,
-                              ),
-                              BoxShadow(
-                                color: Colors.white.withOpacity(0.2),
-                                blurRadius: 10,
-                                offset: const Offset(0, -2),
-                                spreadRadius: 0,
                               ),
                             ],
                           ),
+                    
+                    // 3. ВНУТРЕННИЙ КОНТЕЙНЕР (для белой рамки)
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(31.r),
+                        // Очень тонкая белая обводка
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.15),
+                          width: 1.5,
+                        ),
+                      ),
+                      
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: _isLoading ? null : _navigateToRegistration,
-                              borderRadius: BorderRadius.circular(32.r),
-                              child: Container(
-                                padding: EdgeInsets.symmetric(horizontal: 24.w),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 40.w,
-                                      height: 40.h,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF1976D2).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(20.r),
-                                      ),
-                                      child: Icon(
-                                        Icons.email_outlined,
-                                        color: const Color(0xFF1976D2),
-                                        size: 20.w,
-                                      ),
-                                    ),
-                                    SizedBox(width: 16.w),
-                                    Text(
-                                      'Continue with Email',
-                                      style: AppTypography.titleMedium.copyWith(
-                                        color: const Color(0xFF1976D2),
+                          borderRadius: BorderRadius.circular(31.r),
+                          
+                          // 4. RIPPLE ЭФФЕКТ при нажатии
+                          splashColor: Colors.white.withOpacity(0.2),
+                          highlightColor: Colors.white.withOpacity(0.1),
+                          
+                          onTap: _navigateToRegistration,
+                          
+                          // 5. ТЕКСТ КНОПКИ
+                          child: Center(
+                            child: Text(
+                              'Get Started',
+                              style: TextStyle(
+                                fontSize: 18.sp,
                                         fontWeight: FontWeight.w700,
-                                        fontSize: 16.sp,
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    SizedBox(width: 16.w),
-                                    Icon(
-                                      Icons.arrow_forward_ios_rounded,
-                                      color: const Color(0xFF1976D2),
-                                      size: 16.w,
-                                    ),
-                                  ],
+                                letterSpacing: 0.8,
+                                color: Colors.white,
+                                shadows: [
+                                  // Тень для текста (depth)
+                                  Shadow(
+                                    color: Colors.black.withOpacity(0.25),
+                                    offset: const Offset(0, 2),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                            ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                         
-                        SizedBox(height: 24.h),
-                        
-                        // Sign In to Existing Account - Creative Link
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+                  // Highlight линза поверх кнопки
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE53935).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20.r),
-                            border: Border.all(
-                              color: const Color(0xFFE53935).withOpacity(0.2),
-                              width: 1,
-                            ),
+                          borderRadius: BorderRadius.circular(31.r),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withOpacity(0.10),
+                              Colors.transparent,
+                              Colors.white.withOpacity(0.08),
+                            ],
+                            stops: const [0.0, 0.5, 1.0],
                           ),
-                          child: TextButton(
-                            onPressed: _isLoading ? null : _signInToExistingAccount,
-                            child: Text(
-                              'Already have an account? Sign In',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: const Color(0xFFE53935),
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w500,
-                                decoration: TextDecoration.underline,
-                                decorationColor: const Color(0xFFE53935),
                               ),
                             ),
                           ),
@@ -521,113 +786,42 @@ class _SplashScreenState extends State<SplashScreen>
                       ],
                     ),
                     
-                    SizedBox(height: 60.h),
-                    
-                    // Terms
-                    Text(
-                      'By continuing, you agree to our Terms of Service and Privacy Policy',
-                      textAlign: TextAlign.center,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: const Color(0xFF64748b),
-                        fontSize: 12.sp,
+              SizedBox(height: 20),
+                        
+              // Sign In Link
+              TextButton(
+                style: TextButton.styleFrom(
+                  overlayColor: Colors.white.withOpacity(0.1),
+                ),
+                onPressed: _signInToExistingAccount,
+                child: RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Already have an account? ',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                    
-                    SizedBox(height: 60.h),
-                    
-                    // Loading Indicator
-                    _isLoading ? Container(
-                      padding: EdgeInsets.all(20.w),
-                      child: Column(
-                        children: [
-                          CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF1976D2)),
-                            strokeWidth: 3,
-                          ),
-                          SizedBox(height: 16.h),
-                          Text(
-                            'Setting up your account...',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: const Color(0xFF64748b),
-                              fontSize: 14.sp,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                      TextSpan(
+                        text: 'Sign In',
+                        style: TextStyle(
+                          color: Color(0xFF93C5FD),
+                          decoration: TextDecoration.underline,
+                          decorationColor: Color(0xFF93C5FD),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ) : SizedBox.shrink(),
                   ],
                 ),
               ),
             ),
-          ),
-        ),
-      ),
+                      ],
+                    ),
+        );
+      },
     );
   }
 
-  Widget _buildAuthButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required Color backgroundColor,
-    required Color textColor,
-    Color? borderColor,
-  }) {
-    return Container(
-      width: double.infinity,
-      height: 60.h,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          foregroundColor: textColor,
-          elevation: 0,
-          side: borderColor != null ? BorderSide(color: borderColor, width: 2) : null,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20.r),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: EdgeInsets.all(8.w),
-              decoration: BoxDecoration(
-                color: backgroundColor == Colors.white 
-                    ? const Color(0xFF1976D2).withOpacity(0.1)
-                    : Colors.white.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                size: 24.w,
-                color: textColor,
-              ),
-            ),
-            SizedBox(width: 16.w),
-            Text(
-              label,
-              style: AppTypography.titleMedium.copyWith(
-                color: textColor,
-                fontWeight: FontWeight.w700,
-                fontSize: 16.sp,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

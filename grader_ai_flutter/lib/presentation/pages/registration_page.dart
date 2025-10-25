@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/themes/app_colors.dart';
 import '../../shared/themes/app_typography.dart';
 import '../../core/services/firestore_service.dart';
+import '../../core/utils/network_utils.dart';
 import 'main_page.dart';
 
 class RegistrationPage extends StatefulWidget {
@@ -42,6 +43,7 @@ class _RegistrationPageState extends State<RegistrationPage>
   bool _isLoading = false;
   String? _error;
   String? _authMethod; // 'email'
+  int _retryAttempt = 0; // Track retry attempts for UI
   
   // Firebase Auth
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -103,41 +105,170 @@ class _RegistrationPageState extends State<RegistrationPage>
     super.dispose();
   }
 
-  // Email/Password Registration
+  // Email/Password Registration with retry mechanism
   Future<void> _signUpWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
       _error = null;
+      _retryAttempt = 0;
     });
 
     try {
-      final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+      // Check if Firebase is properly initialized
+      if (_auth.app == null) {
+        throw Exception('Firebase not initialized');
+      }
+
+      print('🔍 Attempting registration with email: ${_emailController.text.trim()}');
+      
+      // Registration with retry mechanism
+      final UserCredential userCredential = await _retryRegistration(
+        maxRetries: 3,
+        retryDelay: const Duration(seconds: 2),
       );
+      
+      print('✅ Registration successful: ${userCredential.user?.email}');
 
       final User? user = userCredential.user;
       if (user != null) {
-        // Update user profile
-        await user.updateDisplayName(_nameController.text.trim());
+        // Update user profile with retry
+        await _retryOperation(
+          () => user.updateDisplayName(_nameController.text.trim()),
+          maxRetries: 2,
+        );
         
-        // Initialize Firestore user data
-        await FirestoreService.instance.ensureUserBootstrap();
+        // Initialize Firestore user data with retry
+        await _retryOperation(
+          () => FirestoreService.instance.ensureUserBootstrap(),
+          maxRetries: 2,
+        );
         
         // Navigate to main page
         _navigateToMain();
       }
-    } catch (e) {
+    } on FirebaseAuthException catch (e) {
+      print('❌ Firebase Auth Error: ${e.code} - ${e.message}');
       setState(() {
-        _error = 'Registration failed: ${e.toString()}';
+        switch (e.code) {
+          case 'email-already-in-use':
+            _error = 'This email is already registered. Please sign in instead.';
+            break;
+          case 'invalid-email':
+            _error = 'Please enter a valid email address.';
+            break;
+          case 'weak-password':
+            _error = 'Password should be at least 6 characters long.';
+            break;
+          case 'operation-not-allowed':
+            _error = 'Email registration is not enabled. Please contact support.';
+            break;
+          case 'internal-error':
+            _error = 'Server error. Please try again in a few minutes. If the problem persists, contact support.';
+            break;
+          case 'network-request-failed':
+            _error = 'Network error. Please check your internet connection and try again.';
+            break;
+          case 'too-many-requests':
+            _error = 'Too many attempts. Please try again later.';
+            break;
+          default:
+            _error = 'Registration failed: ${e.message ?? 'Unknown error occurred'}';
+        }
+      });
+    } catch (e) {
+      print('❌ General Error: $e');
+      setState(() {
+        if (e.toString().contains('network') || e.toString().contains('connection')) {
+          _error = 'Network error. Please check your internet connection and try again.';
+        } else if (e.toString().contains('timeout')) {
+          _error = 'Registration timed out. Please check your internet connection and try again.';
+        } else {
+          _error = 'Registration failed. Please try again later.';
+        }
       });
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
+  }
+
+  /// Retry registration with exponential backoff
+  Future<UserCredential> _retryRegistration({
+    required int maxRetries,
+    required Duration retryDelay,
+  }) async {
+    int attempts = 0;
+    Exception? lastException;
+
+    while (attempts < maxRetries) {
+      try {
+        attempts++;
+        print('🔄 Registration attempt $attempts/$maxRetries');
+        
+        // Update UI with retry attempt
+        if (mounted) {
+          setState(() {
+            _retryAttempt = attempts;
+          });
+        }
+        
+        final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        ).timeout(
+          const Duration(seconds: 15), // Reduced timeout for faster retry
+          onTimeout: () {
+            throw Exception('Registration timeout. Please try again.');
+          },
+        );
+        
+        print('✅ Registration successful on attempt $attempts');
+        return userCredential;
+      } catch (e) {
+        lastException = e is Exception ? e : Exception(e.toString());
+        print('❌ Registration attempt $attempts failed: $e');
+        
+        if (attempts < maxRetries) {
+          // Wait before retry with exponential backoff
+          final delay = Duration(
+            milliseconds: retryDelay.inMilliseconds * attempts,
+          );
+          print('⏳ Waiting ${delay.inSeconds}s before retry...');
+          await Future.delayed(delay);
+        }
+      }
+    }
+    
+    // All retries failed
+    throw lastException ?? Exception('Registration failed after $maxRetries attempts');
+  }
+
+  /// Generic retry operation for Firebase operations
+  Future<T> _retryOperation<T>(
+    Future<T> Function() operation, {
+    int maxRetries = 2,
+  }) async {
+    int attempts = 0;
+    Exception? lastException;
+
+    while (attempts < maxRetries) {
+      try {
+        attempts++;
+        return await operation();
+      } catch (e) {
+        lastException = e is Exception ? e : Exception(e.toString());
+        print('❌ Operation attempt $attempts failed: $e');
+        
+        if (attempts < maxRetries) {
+          await Future.delayed(Duration(milliseconds: 500 * attempts));
+        }
+      }
+    }
+    
+    throw lastException ?? Exception('Operation failed after $maxRetries attempts');
   }
 
   void _navigateToMain() {
@@ -448,15 +579,31 @@ class _RegistrationPageState extends State<RegistrationPage>
                                         padding: EdgeInsets.symmetric(horizontal: 24.w),
                                         child: Center(
                                           child: _isLoading
-                                              ? SizedBox(
-                                                  width: 24.w,
-                                                  height: 24.h,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                                      Colors.white,
+                                              ? Column(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    SizedBox(
+                                                      width: 24.w,
+                                                      height: 24.h,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                                          Colors.white,
+                                                        ),
+                                                      ),
                                                     ),
-                                                  ),
+                                                    if (_retryAttempt > 0) ...[
+                                                      SizedBox(height: 8.h),
+                                                      Text(
+                                                        'Attempt $_retryAttempt/3',
+                                                        style: TextStyle(
+                                                          color: Colors.white.withOpacity(0.8),
+                                                          fontSize: 12.sp,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 )
                                               : Row(
                                                   mainAxisAlignment: MainAxisAlignment.center,

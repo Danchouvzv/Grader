@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import '../../core/audio_recorder_service.dart';
 import '../../core/openai_service.dart';
 import '../../core/config/api_config.dart';
@@ -412,14 +415,243 @@ class _IeltsMvpPageState extends State<IeltsMvpPage> {
     );
   }
 
-  void _onShare() {
-    // TODO: Implement share functionality
+  void _onShare() async {
+    if (_result == null) return;
+    
+    HapticFeedback.lightImpact();
+    
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Generate share content
+      final shareContent = await _generateShareContent();
+      
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+      
+      // Show share options
+      if (mounted) {
+        _showShareOptions(shareContent);
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.pop(context);
+      
+      // Show error
+      if (mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Share functionality coming soon'),
-        duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text('Failed to prepare share content: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<Map<String, String>> _generateShareContent() async {
+    final result = _result!;
+    final now = DateTime.now();
+    final dateFormat = DateFormat('MMM dd, yyyy');
+    
+    // Generate text content
+    final textContent = _generateTextContent(result, dateFormat.format(now));
+    
+    return {
+      'text': textContent,
+    };
+  }
+
+  String _generateTextContent(dynamic result, String date) {
+    final overallBand = result.overallBand.toStringAsFixed(1);
+    final fluency = result.bands['fluency']?.toStringAsFixed(1) ?? '0.0';
+    final coherence = result.bands['coherence']?.toStringAsFixed(1) ?? '0.0';
+    final vocabulary = result.bands['vocabulary']?.toStringAsFixed(1) ?? '0.0';
+    final grammar = result.bands['grammar']?.toStringAsFixed(1) ?? '0.0';
+    final pronunciation = result.bands['pronunciation']?.toStringAsFixed(1) ?? '0.0';
+    
+    return '''
+🎯 IELTS Speaking Assessment Results
+📅 $date
+
+🏆 Overall Band Score: $overallBand/9.0
+
+📊 Detailed Scores:
+• Fluency & Coherence: $fluency/9.0
+• Lexical Resource: $vocabulary/9.0
+• Grammatical Range: $grammar/9.0
+• Pronunciation: $pronunciation/9.0
+
+💡 Key Feedback:
+${result.summary.isNotEmpty ? result.summary : 'Great job! Keep practicing to improve your English skills.'}
+
+🚀 Practice more with Grader.AI to achieve your target band score!
+
+#IELTS #EnglishLearning #GraderAI #SpeakingPractice
+''';
+  }
+
+  void _showShareOptions(Map<String, String> content) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Text(
+                    'Share Your Results',
+                    style: AppTypography.headlineSmall.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Choose how you want to share your IELTS results',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Share options
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildShareOption(
+                          icon: Icons.text_fields_rounded,
+                          label: 'Share Text',
+                          onTap: () => _shareText(content['text']!),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildShareOption(
+                          icon: Icons.copy_rounded,
+                          label: 'Copy Text',
+                          onTap: () => _copyToClipboard(content['text']!),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildShareOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.textTertiary),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: AppColors.primary,
+              size: 24,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _shareText(String text) async {
+    try {
+      await Share.share(
+        text,
+        subject: 'My IELTS Speaking Results',
+      );
+    } catch (e) {
+      _showError('Failed to share text: $e');
+    }
+  }
+
+  void _copyToClipboard(String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Results copied to clipboard!'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (e) {
+      _showError('Failed to copy to clipboard: $e');
+    }
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 
   @override

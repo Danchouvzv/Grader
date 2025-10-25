@@ -1,14 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../features/career/data/datasources/career_local_datasource.dart';
-import '../../features/career/data/datasources/career_remote_datasource.dart';
-import '../../features/career/data/repositories/career_repository_impl.dart';
-import '../../features/career/domain/repositories/career_repository.dart';
-import '../../features/career/domain/usecases/get_assessment_questions.dart';
-import '../../features/career/domain/usecases/get_career_guidance.dart';
-import '../../features/career/domain/usecases/manage_career_sessions.dart';
-import '../../features/career/presentation/bloc/career_bloc.dart';
 import '../../features/ielts/data/datasources/ielts_remote_datasource.dart';
 import '../../features/ielts/data/repositories/ielts_repository_impl.dart';
 import '../../features/ielts/domain/repositories/ielts_repository.dart';
@@ -42,44 +34,5 @@ Future<void> configureDependencies() async {
   );
   getIt.registerFactory<IeltsBloc>(
     () => IeltsBloc(getIt(), getIt()),
-  );
-
-  // Career
-  getIt.registerLazySingleton<CareerRemoteDataSource>(
-    () => CareerRemoteDataSourceImpl(getIt()),
-  );
-  getIt.registerLazySingleton<CareerLocalDataSource>(
-    () => CareerLocalDataSourceImpl(getIt()),
-  );
-  getIt.registerLazySingleton<CareerRepository>(
-    () => CareerRepositoryImpl(getIt(), getIt()),
-  );
-  getIt.registerLazySingleton<GetAssessmentQuestions>(
-    () => GetAssessmentQuestions(getIt()),
-  );
-  getIt.registerLazySingleton<GetCareerGuidance>(
-    () => GetCareerGuidance(getIt()),
-  );
-  getIt.registerLazySingleton<SaveCareerSession>(
-    () => SaveCareerSession(getIt()),
-  );
-  getIt.registerLazySingleton<LoadCareerSession>(
-    () => LoadCareerSession(getIt()),
-  );
-  getIt.registerLazySingleton<GetAvailableSessions>(
-    () => GetAvailableSessions(getIt()),
-  );
-  getIt.registerLazySingleton<DeleteCareerSession>(
-    () => DeleteCareerSession(getIt()),
-  );
-  getIt.registerFactory<CareerBloc>(
-    () => CareerBloc(
-      getIt(),
-      getIt(),
-      getIt(),
-      getIt(),
-      getIt(),
-      getIt(),
-    ),
   );
 }

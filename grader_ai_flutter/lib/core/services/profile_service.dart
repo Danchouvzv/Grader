@@ -127,11 +127,55 @@ class ProfileService {
 
   // Get recent sessions
   Future<List<SessionRecord>> getRecentSessions(int userId, {int limit = 10}) async {
+    try {
+      // First try to get from Firebase (excluding test data)
+      final firebaseSessions = await FirestoreService.instance.getRecentIeltsResults(limit: limit);
+      if (firebaseSessions.isNotEmpty) {
+        // Convert Firebase data to SessionRecord format
+        return firebaseSessions.map((data) => SessionRecord(
+          userId: userId,
+          sessionType: 'IELTS Speaking',
+          partType: 'Part 1',
+          durationSeconds: 300, // Default 5 minutes
+          overallBand: (data['overallBand'] as num?)?.toDouble() ?? 0.0,
+          fluencyBand: (data['fluency'] as num?)?.toDouble() ?? 0.0,
+          lexicalBand: (data['lexical'] as num?)?.toDouble() ?? 0.0,
+          grammarBand: (data['grammar'] as num?)?.toDouble() ?? 0.0,
+          pronunciationBand: (data['pronunciation'] as num?)?.toDouble() ?? 0.0,
+          transcript: data['transcript'] ?? '',
+          feedback: 'AI-generated feedback',
+          audioPath: null,
+          createdAt: DateTime.now(),
+        )).toList();
+      }
+    } catch (_) {
+      // Fallback to local database
+    }
+    
+    // Fallback to local database
     return await _db.getSessionRecords(userId, limit: limit);
   }
 
   // Get user stats
   Future<Map<String, dynamic>> getUserStats(int userId) async {
+    try {
+      // First try to get from Firebase (excluding test data)
+      final firebaseProfile = await FirestoreService.instance.getUserProfile();
+      if (firebaseProfile != null) {
+        return {
+          'totalSessions': firebaseProfile['totalIeltsSessions'] ?? 0,
+          'totalPracticeTime': 0, // Will be calculated from sessions
+          'averageBand': 0.0, // Will be calculated from sessions
+          'bestBand': firebaseProfile['bestIeltsScore'] ?? 0.0,
+          'currentStreak': firebaseProfile['currentStreak'] ?? 0,
+          'longestStreak': 0, // Will be calculated
+        };
+      }
+    } catch (_) {
+      // Fallback to local database
+    }
+    
+    // Fallback to local database aggregation
     return await _db.getUserStats(userId);
   }
 

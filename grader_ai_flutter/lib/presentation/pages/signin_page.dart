@@ -67,6 +67,13 @@ class _SignInPageState extends State<SignInPage>
       parent: _fadeController,
       curve: Curves.easeOut,
     ));
+    
+    // Ensure opacity values are within valid range
+    _fadeAnimation.addListener(() {
+      if (_fadeAnimation.value.isNaN || _fadeAnimation.value < 0.0 || _fadeAnimation.value > 1.0) {
+        print('⚠️ Invalid opacity value: ${_fadeAnimation.value}');
+      }
+    });
 
     _slideController.forward();
     _fadeController.forward();
@@ -90,10 +97,14 @@ class _SignInPageState extends State<SignInPage>
     });
 
     try {
+      print('🔍 Attempting sign in with email: ${_emailController.text.trim()}');
+      
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      print('✅ Sign in successful: ${userCredential.user?.email}');
 
       if (userCredential.user != null) {
         // Ensure user data is bootstrapped
@@ -101,6 +112,7 @@ class _SignInPageState extends State<SignInPage>
         _navigateToMain();
       }
     } on FirebaseAuthException catch (e) {
+      print('❌ Firebase Auth Error: ${e.code} - ${e.message}');
       setState(() {
         switch (e.code) {
           case 'user-not-found':

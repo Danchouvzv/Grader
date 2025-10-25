@@ -538,7 +538,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Navigator.pop(context);
               // Implement export functionality
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Export functionality coming soon!')),
+                const SnackBar(content: Text('Export functionality will be available in the next update')),
               );
             },
             child: const Text('Export'),
@@ -564,7 +564,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Navigator.pop(context);
               // Implement delete account functionality
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Account deletion is not implemented yet')),
+                const SnackBar(content: Text('Account deletion will be available in the next update')),
               );
             },
             style: ElevatedButton.styleFrom(

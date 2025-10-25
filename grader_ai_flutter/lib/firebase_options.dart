@@ -59,8 +59,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyD6dNkNhrzOJPpOncjm7NOkfnPp5iqeBRI',
-    appId: '1:826439841489:ios:85fc26ee00eb0b45a477f0',
+    apiKey: 'AIzaSyD6NkNhrzJUPpOnjm7NOKhrPp5igecBRlI',
+    appId: '1:826439841489:ios:85fc26ee00eb04b45a47710',
     messagingSenderId: '826439841489',
     projectId: 'grader-a3239',
     storageBucket: 'grader-a3239.firebasestorage.app',

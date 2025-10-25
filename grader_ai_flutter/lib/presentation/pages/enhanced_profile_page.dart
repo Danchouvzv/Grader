@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:async';
 import '../../core/models/user_profile.dart';
 import '../../core/models/session_record.dart';
 import '../../core/models/achievement.dart';
@@ -10,6 +16,45 @@ import '../../shared/themes/app_theme.dart';
 import '../../shared/widgets/stat_card.dart';
 import '../../shared/themes/design_system.dart';
 import 'subscription_page.dart';
+import 'splash_screen.dart';
+
+/// Profile page constants to avoid magic numbers
+class ProfileConstants {
+  // Dimensions
+  static const double headerHeight = 260;
+  static const double avatarSize = 90;
+  static const double buttonHeight = 56;
+  static const double cardPadding = 24;
+  static const double sectionSpacing = 16;
+  static const double bottomPadding = 100;
+  
+  // Typography
+  static const double titleFontSize = 28;
+  static const double subtitleFontSize = 16;
+  static const double bodyFontSize = 14;
+  static const double captionFontSize = 12;
+  
+  // Animation durations
+  static const Duration fadeDuration = Duration(milliseconds: 800);
+  static const Duration slideDuration = Duration(milliseconds: 600);
+  static const Duration counterDuration = Duration(milliseconds: 1500);
+  static const Duration shimmerDuration = Duration(milliseconds: 1500);
+  static const Duration tweenDuration = Duration(milliseconds: 1000);
+  static const Duration counterTweenDuration = Duration(milliseconds: 1200);
+  static const Duration progressTweenDuration = Duration(milliseconds: 1500);
+  static const Duration staggeredDelay = Duration(milliseconds: 100);
+  static const Duration achievementDelay = Duration(milliseconds: 100);
+  static const Duration offlineBannerDuration = Duration(milliseconds: 300);
+  
+  // Grid
+  static const int statsGridCrossAxisCount = 2;
+  static const double statsGridChildAspectRatio = 1.2;
+  
+  // Chart
+  static const double chartHeight = 180;
+  static const double miniChartHeight = 120;
+  static const int weeklyDaysCount = 7;
+}
 
 /// Enhanced Profile Page with proper Flutter architecture
 /// Fixes all UI/UX and frontend issues mentioned in the review
@@ -25,6 +70,12 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
   
   // Services
   final ProfileService _profileService = ProfileService();
+  final Connectivity _connectivity = Connectivity();
+  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  
+  // Connectivity
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  bool _isOffline = false;
   
   // State
   UserProfile? _profile;
@@ -43,28 +94,54 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
   late Animation<double> _counterAnimation;
   
   bool _isLoading = true;
+  bool _isRetrying = false;
   String? _error;
+  
+  // Animation listeners to prevent memory leaks
+  VoidCallback? _fadeListener;
+  VoidCallback? _slideListener;
+  VoidCallback? _counterListener;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
+    _checkConnectivity();
     _loadProfileData();
+  }
+
+  Future<void> _checkConnectivity() async {
+    final result = await _connectivity.checkConnectivity();
+    setState(() {
+      _isOffline = result == ConnectivityResult.none;
+    });
+    
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
+      final wasOffline = _isOffline;
+      setState(() {
+        _isOffline = result == ConnectivityResult.none;
+      });
+      
+      // Auto-reload when coming back online
+      if (wasOffline && !_isOffline) {
+        _loadProfileData();
+      }
+    });
   }
 
   void _initializeAnimations() {
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: ProfileConstants.fadeDuration,
       vsync: this,
     );
     
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
+      duration: ProfileConstants.slideDuration,
       vsync: this,
     );
     
     _counterController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: ProfileConstants.counterDuration,
       vsync: this,
     );
     
@@ -92,11 +169,27 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
       curve: Curves.easeOutCubic,
     ));
     
+    // Add safety listeners to prevent memory leaks
+    _fadeListener = () {
+      if (mounted) setState(() {});
+    };
+    _slideListener = () {
+      if (mounted) setState(() {});
+    };
+    _counterListener = () {
+      if (mounted) setState(() {});
+    };
+    
+    _fadeAnimation.addListener(_fadeListener!);
+    _slideAnimation.addListener(_slideListener!);
+    _counterAnimation.addListener(_counterListener!);
+    
     // Start animations
     _fadeController.forward();
     _slideController.forward();
     _counterController.forward();
   }
+
 
   Future<void> _loadProfileData() async {
     setState(() {
@@ -126,6 +219,18 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
         print('🏆 Profile loaded:');
         print('   Achievements: ${_achievements.length}');
         print('   Types: ${_achievements.map((a) => a.achievementType).toList()}');
+        
+        // Track analytics
+        await _analytics.logEvent(
+          name: 'profile_viewed',
+          parameters: {
+            'user_id': _profile?.id ?? 0,
+            'level': _profile?.level ?? 0,
+            'streak': _profile?.currentStreak ?? 0,
+            'achievements_count': _achievements.length,
+            'sessions_count': _recentSessions.length,
+          },
+        );
       }
     } catch (e) {
       setState(() {
@@ -140,6 +245,21 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
 
   @override
   void dispose() {
+    // Cancel connectivity subscription
+    _connectivitySubscription?.cancel();
+    
+    // Remove listeners to prevent memory leaks
+    if (_fadeListener != null) {
+      _fadeAnimation.removeListener(_fadeListener!);
+    }
+    if (_slideListener != null) {
+      _slideAnimation.removeListener(_slideListener!);
+    }
+    if (_counterListener != null) {
+      _counterAnimation.removeListener(_counterListener!);
+    }
+    
+    // Dispose controllers
     _fadeController.dispose();
     _slideController.dispose();
     _counterController.dispose();
@@ -150,13 +270,53 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: _isLoading 
-            ? _buildLoadingState()
-            : _error != null 
-                ? _buildErrorState()
-                : _buildProfileContent(),
+      body: Column(
+        children: [
+          _buildOfflineBanner(),
+          Expanded(
+            child: SafeArea(
+              child: Semantics(
+                label: 'User Profile Page',
+                child: RefreshIndicator(
+                  onRefresh: _loadProfileData,
+                  color: DesignSystem.blue500,
+                  backgroundColor: Colors.white,
+                  child: _isLoading 
+                      ? _buildLoadingState()
+                      : _error != null 
+                          ? _buildErrorState()
+                          : _buildProfileContent(),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildOfflineBanner() {
+    return AnimatedContainer(
+      duration: ProfileConstants.offlineBannerDuration,
+      height: _isOffline ? 40.h : 0,
+      color: Colors.orange.shade600,
+      child: _isOffline
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16.w),
+                SizedBox(width: 8.w),
+                Text(
+                  'No internet connection',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            )
+          : null,
     );
   }
 
@@ -301,7 +461,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           Positioned.fill(
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: -1.0, end: 2.0),
-              duration: const Duration(milliseconds: 1500),
+              duration: ProfileConstants.shimmerDuration,
               curve: Curves.easeInOut,
               builder: (context, value, child) {
                 return Container(
@@ -386,24 +546,155 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
               textAlign: TextAlign.center,
             ),
             SizedBox(height: 24.h),
-            ElevatedButton(
-              onPressed: _loadProfileData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.r),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ElevatedButton(
+                  onPressed: _isRetrying ? null : () async {
+                    setState(() => _isRetrying = true);
+                    await _loadProfileData();
+                    if (mounted) setState(() => _isRetrying = false);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                  ),
+                  child: _isRetrying 
+                    ? SizedBox(
+                        width: 20.w,
+                        height: 20.h,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text(
+                        'Try Again',
+                        style: AppTypography.labelLarge.copyWith(
+                          color: Colors.white,
+                        ),
+                      ),
                 ),
+                SizedBox(width: 12.w),
+                OutlinedButton(
+                  onPressed: _showErrorDetails,
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                  ),
+                  child: Text(
+                    'Details',
+                    style: AppTypography.labelLarge.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showErrorDetails() {
+    showDialog(
+      context: context,
+      builder: (context) => Semantics(
+        label: 'Error details dialog',
+        child: AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        title: Text(
+          'Error Details',
+          style: TextStyle(
+            fontSize: 20.sp,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Error Message:',
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(12.w),
+              decoration: BoxDecoration(
+                color: DesignSystem.surfaceGray,
+                borderRadius: BorderRadius.circular(8.r),
               ),
               child: Text(
-                'Try Again',
-                style: AppTypography.labelLarge.copyWith(
-                  color: Colors.white,
+                _error ?? 'No error message available',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: AppColors.textSecondary,
+                  fontFamily: 'monospace',
                 ),
               ),
             ),
+            SizedBox(height: 16.h),
+            Text(
+              'Troubleshooting:',
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              '• Check your internet connection\n• Try refreshing the page\n• Restart the app if the problem persists',
+              style: TextStyle(
+                fontSize: 12.sp,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Close',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _loadProfileData();
+            },
+            child: Text(
+              'Retry',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
         ),
       ),
     );
@@ -471,9 +762,22 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 ),
               ),
               
+              // Logout Button
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    DesignSystem.space20.w,
+                    DesignSystem.space24.h,
+                    DesignSystem.space20.w,
+                    0,
+                  ),
+                  child: _buildLogoutButton(),
+                ),
+              ),
+              
               // Bottom padding
               SliverToBoxAdapter(
-                child: SizedBox(height: 100.h),
+                child: SizedBox(height: ProfileConstants.bottomPadding.h),
               ),
             ],
           ),
@@ -585,7 +889,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
   Widget _buildPremiumAvatar() {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 1000),
+      duration: ProfileConstants.tweenDuration,
       curve: Curves.elasticOut,
       builder: (context, value, child) {
         return Transform.scale(
@@ -700,7 +1004,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           SizedBox(height: DesignSystem.space12.h),
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.0, end: streakDays.toDouble()),
-            duration: const Duration(milliseconds: 1200),
+            duration: ProfileConstants.counterTweenDuration,
             curve: Curves.easeOutCubic,
             builder: (context, value, child) {
               return Text(
@@ -751,7 +1055,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           SizedBox(height: DesignSystem.space12.h),
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.0, end: targetBand),
-            duration: const Duration(milliseconds: 1200),
+            duration: ProfileConstants.counterTweenDuration,
             curve: Curves.easeOutCubic,
             builder: (context, value, child) {
               return Text(
@@ -1070,7 +1374,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
             children: [
               TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0.0, end: 1.0),
-                duration: const Duration(milliseconds: 1200),
+                duration: ProfileConstants.counterTweenDuration,
                 curve: Curves.easeOutBack,
                 builder: (context, value, child) {
                   return Transform.scale(
@@ -1096,7 +1400,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 fit: BoxFit.scaleDown,
                 child: TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0.0, end: targetBand * _counterAnimation.value),
-                  duration: const Duration(milliseconds: 1200),
+                  duration: ProfileConstants.counterTweenDuration,
                   curve: Curves.easeOutCubic,
                   builder: (context, value, child) {
                     return Row(
@@ -1269,25 +1573,25 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
         StatCard(
           icon: Icons.analytics_rounded,
           value: '${_stats['totalSessions'] ?? 0}',
-          label: 'Sessions',
+          label: 'Total Sessions',
           color: DesignSystem.blue600,
         ),
         StatCard(
           icon: Icons.timer_rounded,
           value: _formatDuration(_stats['totalPracticeTime'] ?? 0),
-          label: 'Time',
+          label: 'Practice Time',
           color: DesignSystem.purple600,
         ),
         StatCard(
           icon: Icons.trending_up_rounded,
           value: (_stats['averageBand'] ?? 0.0).toStringAsFixed(1),
-          label: 'Avg Band',
+          label: 'Average Band',
           color: DesignSystem.green600,
         ),
         StatCard(
           icon: Icons.emoji_events_rounded,
           value: (_stats['bestBand'] ?? 0.0).toStringAsFixed(1),
-          label: 'Best',
+          label: 'Best Score',
           color: DesignSystem.amber500,
           isHighlighted: true,
         ),
@@ -1377,16 +1681,20 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                     SizedBox(height: 2.h),
                     Row(
                       children: [
-                        _buildMiniStat(
-                          icon: Icons.timeline_rounded,
-                          value: '$totalWeeklySessions',
-                          label: 'sessions',
+                        Expanded(
+                          child: _buildMiniStat(
+                            icon: Icons.timeline_rounded,
+                            value: '$totalWeeklySessions',
+                            label: 'sessions',
+                          ),
                         ),
                         SizedBox(width: 16.w),
-                        _buildMiniStat(
-                          icon: Icons.star_rounded,
-                          value: avgBand.toStringAsFixed(1),
-                          label: 'avg',
+                        Expanded(
+                          child: _buildMiniStat(
+                            icon: Icons.star_rounded,
+                            value: avgBand.toStringAsFixed(1),
+                            label: 'avg band',
+                          ),
                         ),
                       ],
                     ),
@@ -1413,39 +1721,72 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     required String value,
     required String label,
   }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 14.w,
-          color: DesignSystem.green600,
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 12.w,
+        vertical: 8.h,
+      ),
+      decoration: BoxDecoration(
+        color: DesignSystem.green50,
+        borderRadius: BorderRadius.circular(8.r),
+        border: Border.all(
+          color: DesignSystem.green500.withOpacity(0.2),
+          width: 1,
         ),
-        SizedBox(width: 4.w),
-        Text(
-          value,
-          style: DesignSystem.bodySmall.copyWith(
-            fontWeight: FontWeight.w800,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16.w,
             color: DesignSystem.green600,
-            fontSize: 13.sp,
           ),
-        ),
-        SizedBox(width: 2.w),
-        Text(
-          label,
-          style: DesignSystem.caption.copyWith(
-            color: DesignSystem.textSecondary,
-            fontSize: 11.sp,
+          SizedBox(width: 6.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: DesignSystem.bodySmall.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: DesignSystem.green600,
+                    fontSize: 14.sp,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                Text(
+                  label,
+                  style: DesignSystem.caption.copyWith(
+                    color: DesignSystem.textSecondary,
+                    fontSize: 10.sp,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildEnhancedProgressChart(int maxSessions) {
+    // Generate 7 days of data (Mon-Sun)
+    final now = DateTime.now();
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    
     return Container(
-      height: 180.h,
-      padding: EdgeInsets.all(DesignSystem.space16.w),
+      height: 200.h,
+      padding: EdgeInsets.symmetric(
+        horizontal: 12.w,
+        vertical: 16.h,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(DesignSystem.radiusLarge.r),
@@ -1453,145 +1794,253 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           color: DesignSystem.green500.withOpacity(0.1),
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: DesignSystem.green500.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: _weeklyProgress.asMap().entries.map((entry) {
-          final index = entry.key;
-          final data = entry.value;
-          final sessions = (data['sessions'] ?? data['sessions_count']) as int? ?? 0;
-          // Get day name from 'day' field or parse from 'date' field
-          final day = data['day'] as String? ?? 
-                      (data['date'] != null 
-                          ? DateFormat('EEE').format(DateTime.parse(data['date'] as String))
-                          : '');
-          final isToday = index == _weeklyProgress.length - 1;
-          
-          return Expanded(
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.0, end: 1.0),
-              duration: Duration(milliseconds: 600 + (index * 100)),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, child) {
-                final height = maxSessions == 0 
-                    ? 0.0 
-                    : (sessions / maxSessions * 100 * value);
+      child: Column(
+        children: [
+          // Chart bars
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (index) {
+                final dayName = weekDays[index];
+                final dayData = _weeklyProgress.firstWhere(
+                  (data) => data['day'] == dayName,
+                  orElse: () => {'sessions': 0, 'sessions_count': 0},
+                );
+                final sessions = (dayData['sessions'] ?? dayData['sessions_count']) as int? ?? 0;
+                final isToday = dayName == DateFormat('EEE').format(now);
                 
-                return Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4.w),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      // Sessions count
-                      if (sessions > 0)
-                        Padding(
-                          padding: EdgeInsets.only(bottom: 4.h),
-                          child: Text(
-                            '$sessions',
-                            style: DesignSystem.caption.copyWith(
-                              fontSize: 10.sp,
-                              fontWeight: FontWeight.w800,
-                              color: isToday 
-                                  ? DesignSystem.green600 
-                                  : DesignSystem.textSecondary,
-                            ),
-                          ),
-                        ),
+                return Expanded(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: Duration(
+                      milliseconds: 800 + (index * 100),
+                    ),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      final height = maxSessions == 0 
+                          ? 0.0 
+                          : (sessions / maxSessions * 120 * value);
                       
-                      // Bar
-                      Container(
-                        width: double.infinity,
-                        height: height.h,
-                        decoration: BoxDecoration(
-                          gradient: isToday
-                              ? DesignSystem.successGradient
-                              : LinearGradient(
-                                  colors: [
-                                    DesignSystem.green500.withOpacity(0.7),
-                                    DesignSystem.green400.withOpacity(0.5),
-                                  ],
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
+                      return Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 2.w),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            // Sessions count above bar
+                            if (sessions > 0)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 4.w,
+                                  vertical: 2.h,
                                 ),
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(8.r),
-                          ),
-                          boxShadow: isToday && sessions > 0
-                              ? [
-                                  BoxShadow(
-                                    color: DesignSystem.green500.withOpacity(0.4),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
+                                decoration: BoxDecoration(
+                                  color: isToday 
+                                      ? DesignSystem.green600 
+                                      : DesignSystem.textSecondary,
+                                  borderRadius: BorderRadius.circular(4.r),
+                                ),
+                                child: Text(
+                                  '$sessions',
+                                  style: TextStyle(
+                                    fontSize: 9.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
                                   ),
-                                ]
-                              : null,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            
+                            SizedBox(height: 4.h),
+                            
+                            // Bar
+                            Container(
+                              width: double.infinity,
+                              height: height.h,
+                              decoration: BoxDecoration(
+                                gradient: isToday
+                                    ? DesignSystem.successGradient
+                                    : LinearGradient(
+                                        colors: [
+                                          DesignSystem.green500.withOpacity(0.8),
+                                          DesignSystem.green400.withOpacity(0.6),
+                                        ],
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                      ),
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(6.r),
+                                ),
+                                boxShadow: isToday && sessions > 0
+                                    ? [
+                                        BoxShadow(
+                                          color: DesignSystem.green500.withOpacity(0.4),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      
-                      SizedBox(height: 8.h),
-                      
-                      // Day label
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 6.w,
-                          vertical: 4.h,
-                        ),
-                        decoration: isToday
-                            ? BoxDecoration(
-                                gradient: DesignSystem.successGradient,
-                                borderRadius: BorderRadius.circular(6.r),
-                              )
-                            : null,
-                        child: Text(
-                          day,
-                          style: DesignSystem.caption.copyWith(
-                            fontSize: 10.sp,
-                            fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
-                            color: isToday 
-                                ? Colors.white 
-                                : DesignSystem.textSecondary,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 );
-              },
+              }),
             ),
-          );
-        }).toList(),
+          ),
+          
+          SizedBox(height: 12.h),
+          
+          // Day labels
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: weekDays.map((dayName) {
+              final isToday = dayName == DateFormat('EEE').format(now);
+              
+              return Expanded(
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 4.w,
+                    vertical: 6.h,
+                  ),
+                  decoration: isToday
+                      ? BoxDecoration(
+                          gradient: DesignSystem.successGradient,
+                          borderRadius: BorderRadius.circular(6.r),
+                          boxShadow: [
+                            BoxShadow(
+                              color: DesignSystem.green500.withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        )
+                      : BoxDecoration(
+                          color: DesignSystem.surfaceGray.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6.r),
+                          border: Border.all(
+                            color: DesignSystem.border.withOpacity(0.3),
+                            width: 0.5,
+                          ),
+                        ),
+                  child: Text(
+                    dayName,
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                      color: isToday 
+                          ? Colors.white 
+                          : DesignSystem.textPrimary,
+                      letterSpacing: 0.2,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildEmptyProgressState() {
     return Container(
-      height: 120.h,
+      height: 200.h,
       decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12.r),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(DesignSystem.radiusLarge.r),
         border: Border.all(
-          color: const Color(0xFFE2E8F0),
+          color: DesignSystem.green500.withOpacity(0.1),
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: DesignSystem.green500.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.bar_chart_rounded,
-              color: AppColors.textTertiary,
-              size: 32.w,
+            Container(
+              padding: EdgeInsets.all(16.w),
+              decoration: BoxDecoration(
+                gradient: DesignSystem.successGradient,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: DesignSystem.green500.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.trending_up_rounded,
+                color: Colors.white,
+                size: 32.w,
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              'No Progress Yet',
+              style: DesignSystem.headlineSmall.copyWith(
+                color: DesignSystem.textPrimary,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             SizedBox(height: 8.h),
             Text(
-              'Start practicing to see your progress!',
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: AppColors.textSecondary,
+              'Start practicing to see your weekly\nprogress chart here',
+              style: DesignSystem.bodyMedium.copyWith(
+                color: DesignSystem.textSecondary,
+                fontSize: 13.sp,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 20.h),
+            ElevatedButton.icon(
+              onPressed: () {
+                // Navigate to practice
+              },
+              icon: Icon(Icons.play_arrow_rounded, size: 18.w),
+              label: Text(
+                'Start Practice',
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DesignSystem.green500,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 20.w,
+                  vertical: 10.h,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                elevation: 2,
               ),
             ),
           ],
@@ -2083,7 +2532,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
               // Circular progress indicator
               TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0.0, end: progress),
-                duration: const Duration(milliseconds: 1500),
+                duration: ProfileConstants.shimmerDuration,
                 curve: Curves.easeOutCubic,
                 builder: (context, value, child) {
                   return SizedBox(
@@ -2168,7 +2617,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 ),
                 SizedBox(width: DesignSystem.space8.w),
                 Text(
-                  'COMING SOON',
+                  'Premium Feature',
                   style: DesignSystem.label.copyWith(
                     color: DesignSystem.textTertiary,
                     fontSize: 11.sp,
@@ -2201,7 +2650,9 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 400 + (_achievements.indexOf(achievement) * 100)),
+      duration: Duration(
+        milliseconds: ProfileConstants.offlineBannerDuration.inMilliseconds + (_achievements.indexOf(achievement) * ProfileConstants.achievementDelay.inMilliseconds),
+      ),
       curve: Curves.easeOutBack,
       builder: (context, value, child) {
         return Transform.scale(
@@ -2586,26 +3037,53 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
             borderRadius: BorderRadius.circular(24.r),
           ),
           child: Container(
-            width: MediaQuery.of(context).size.width * 0.9,
+            width: MediaQuery.of(context).size.width * 0.95,
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28.r),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white,
+                  const Color(0xFFFAFBFC),
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
+                // Premium Header
                 Container(
-                  padding: EdgeInsets.all(24.w),
+                  padding: EdgeInsets.fromLTRB(28.w, 24.h, 28.w, 20.h),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                       colors: [
-                        AppColors.primary,
-                        AppColors.primary.withOpacity(0.8),
+                        DesignSystem.blue600,
+                        DesignSystem.blue500,
+                        DesignSystem.purple500,
                       ],
+                      stops: const [0.0, 0.6, 1.0],
                     ),
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24.r),
-                      topRight: Radius.circular(24.r),
+                      topLeft: Radius.circular(28.r),
+                      topRight: Radius.circular(28.r),
                     ),
                   ),
                   child: Row(
@@ -2615,6 +3093,10 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(16.r),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1,
+                          ),
                         ),
                         child: Icon(
                           Icons.edit_rounded,
@@ -2630,27 +3112,36 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                             Text(
                               'Edit Profile',
                               style: TextStyle(
-                                fontSize: 22.sp,
+                                fontSize: 24.sp,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white,
+                                letterSpacing: -0.5,
                               ),
                             ),
+                            SizedBox(height: 4.h),
                             Text(
-                              'Customize your profile information',
+                              'Customize your personal information',
                               style: TextStyle(
                                 fontSize: 14.sp,
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withOpacity(0.9),
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: Colors.white,
-                          size: 24.w,
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 24.w,
+                          ),
                         ),
                       ),
                     ],
@@ -2660,7 +3151,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 // Content
                 Flexible(
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.all(24.w),
+                    padding: EdgeInsets.all(28.w),
                     child: Column(
                       children: [
                         // Avatar Section
@@ -2706,49 +3197,87 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                         Row(
                           children: [
                             Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.pop(context),
-                                style: OutlinedButton.styleFrom(
-                                  padding: EdgeInsets.symmetric(vertical: 16.h),
-                                  side: BorderSide(color: AppColors.border),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12.r),
+                              child: Container(
+                                height: 56.h,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16.r),
+                                  border: Border.all(
+                                    color: DesignSystem.border,
+                                    width: 1.5,
                                   ),
                                 ),
-                                child: Text(
-                                  'Cancel',
-                                  style: TextStyle(
-                                    fontSize: 16.sp,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textSecondary,
+                                child: TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  style: TextButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16.r),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      fontSize: 16.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: DesignSystem.textSecondary,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                             SizedBox(width: 16.w),
                             Expanded(
-                              child: ElevatedButton(
-                                onPressed: () async {
-                                  await _updateProfile(
-                                    name: nameController.text.trim(),
-                                    avatarPath: selectedAvatar,
-                                  );
-                                  Navigator.pop(context);
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  padding: EdgeInsets.symmetric(vertical: 16.h),
-                                  backgroundColor: const Color(0xFF3B82F6),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12.r),
+                              flex: 2,
+                              child: Container(
+                                height: 56.h,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      DesignSystem.blue500,
+                                      DesignSystem.purple500,
+                                    ],
                                   ),
-                                  elevation: 0,
+                                  borderRadius: BorderRadius.circular(16.r),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: DesignSystem.blue500.withOpacity(0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                                child: Text(
-                                  'Save Changes',
-                                  style: TextStyle(
-                                    fontSize: 16.sp,
-                                    fontWeight: FontWeight.w700,
+                                child: ElevatedButton(
+                                  onPressed: () async {
+                                    await _updateProfile(
+                                      name: nameController.text.trim(),
+                                      avatarPath: selectedAvatar,
+                                    );
+                                    Navigator.pop(context);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16.r),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.save_rounded,
+                                        color: Colors.white,
+                                        size: 20.w,
+                                      ),
+                                      SizedBox(width: 8.w),
+                                      Text(
+                                        'Save Changes',
+                                        style: TextStyle(
+                                          fontSize: 16.sp,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -2775,52 +3304,139 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text(
-            'Set Target Band',
-            style: TextStyle(
-              fontSize: 20.sp,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.r),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  color: DesignSystem.blue500.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                child: Icon(
+                  Icons.flag_rounded,
+                  color: DesignSystem.blue500,
+                  size: 20.w,
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Text(
+                'Set Target Band',
+                style: TextStyle(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.w700,
+                  color: DesignSystem.textPrimary,
+                ),
+              ),
+            ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Current Target: ${currentTarget.toStringAsFixed(1)}',
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              SizedBox(height: 24.h),
-              Text(
-                'Select Target Band:',
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              SizedBox(height: 16.h),
+              // Current Target Display
               Container(
+                width: double.infinity,
                 padding: EdgeInsets.all(16.w),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  gradient: LinearGradient(
+                    colors: [
+                      DesignSystem.blue500.withOpacity(0.1),
+                      DesignSystem.purple500.withOpacity(0.05),
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(12.r),
                   border: Border.all(
-                    color: AppColors.border,
+                    color: DesignSystem.blue500.withOpacity(0.2),
                     width: 1,
                   ),
                 ),
                 child: Column(
                   children: [
                     Text(
-                      '${selectedTarget.toStringAsFixed(1)}',
+                      'Current Target',
                       style: TextStyle(
-                        fontSize: 32.sp,
+                        fontSize: 14.sp,
+                        color: DesignSystem.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      'Band ${currentTarget.toStringAsFixed(1)}',
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w800,
+                        color: DesignSystem.blue500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              SizedBox(height: 24.h),
+              
+              // Band Selection
+              Text(
+                'Select Target Band:',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: DesignSystem.textPrimary,
+                ),
+              ),
+              
+              SizedBox(height: 20.h),
+              
+              // Quick Selection Buttons (0.5 steps)
+              Wrap(
+                spacing: 8.w,
+                runSpacing: 8.h,
+                children: [
+                  for (double band = 4.0; band <= 9.0; band += 0.5)
+                    _buildBandButton(
+                      band: band,
+                      isSelected: selectedTarget == band,
+                      onTap: () {
+                        setState(() {
+                          selectedTarget = band;
+                        });
+                      },
+                    ),
+                ],
+              ),
+              
+              SizedBox(height: 20.h),
+              
+              // Slider for fine adjustment
+              Container(
+                padding: EdgeInsets.all(16.w),
+                decoration: BoxDecoration(
+                  color: DesignSystem.surfaceGray,
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(
+                    color: DesignSystem.border,
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Fine Adjustment',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: DesignSystem.textSecondary,
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      'Band ${selectedTarget.toStringAsFixed(1)}',
+                      style: TextStyle(
+                        fontSize: 28.sp,
                         fontWeight: FontWeight.w900,
-                        color: AppColors.primary,
+                        color: DesignSystem.blue500,
                       ),
                     ),
                     SizedBox(height: 16.h),
@@ -2828,9 +3444,9 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                       value: selectedTarget,
                       min: 4.0,
                       max: 9.0,
-                      divisions: 50,
-                      activeColor: AppColors.primary,
-                      inactiveColor: AppColors.border,
+                      divisions: 10, // 0.5 steps: 4.0, 4.5, 5.0, ..., 9.0
+                      activeColor: DesignSystem.blue500,
+                      inactiveColor: DesignSystem.border,
                       onChanged: (value) {
                         setState(() {
                           selectedTarget = value;
@@ -2840,8 +3456,22 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('4.0', style: TextStyle(color: AppColors.textSecondary)),
-                        Text('9.0', style: TextStyle(color: AppColors.textSecondary)),
+                        Text(
+                          '4.0',
+                          style: TextStyle(
+                            color: DesignSystem.textSecondary,
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          '9.0',
+                          style: TextStyle(
+                            color: DesignSystem.textSecondary,
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -2852,9 +3482,16 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+              ),
               child: Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(
+                  color: DesignSystem.textSecondary,
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             ElevatedButton(
@@ -2863,10 +3500,21 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
+                backgroundColor: DesignSystem.blue500,
                 foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                elevation: 0,
               ),
-              child: Text('Set Target'),
+              child: Text(
+                'Save Target',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
@@ -2874,99 +3522,305 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     );
   }
 
+  Widget _buildBandButton({
+    required double band,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+        decoration: BoxDecoration(
+          color: isSelected ? DesignSystem.blue500 : DesignSystem.surfaceGray,
+          borderRadius: BorderRadius.circular(8.r),
+          border: Border.all(
+            color: isSelected ? DesignSystem.blue500 : DesignSystem.border,
+            width: 1,
+          ),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: DesignSystem.blue500.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ] : null,
+        ),
+        child: Text(
+          band.toStringAsFixed(1),
+          style: TextStyle(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w600,
+            color: isSelected ? Colors.white : DesignSystem.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAvatarSection(String selectedAvatar, Function(String) onAvatarSelected) {
-    final avatars = [
-      {'name': 'Default', 'icon': Icons.person_rounded, 'color': AppColors.primary},
-      {'name': 'Student', 'icon': Icons.school_rounded, 'color': AppColors.info},
-      {'name': 'Professional', 'icon': Icons.work_rounded, 'color': AppColors.success},
-      {'name': 'Creative', 'icon': Icons.palette_rounded, 'color': AppColors.accent},
-      {'name': 'Tech', 'icon': Icons.computer_rounded, 'color': AppColors.warning},
-      {'name': 'Nature', 'icon': Icons.eco_rounded, 'color': AppColors.secondary},
-    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Profile Avatar',
-          style: TextStyle(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        SizedBox(height: 4.h),
-        Text(
-          'Choose an avatar that represents you',
-          style: TextStyle(
-            fontSize: 14.sp,
-            color: AppColors.textSecondary,
-          ),
+        Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8.w),
+              decoration: BoxDecoration(
+                color: DesignSystem.purple500.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: Icon(
+                Icons.photo_camera_rounded,
+                color: DesignSystem.purple500,
+                size: 18.w,
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Text(
+              'Profile Photo',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w700,
+                color: DesignSystem.textPrimary,
+              ),
+            ),
+          ],
         ),
         SizedBox(height: 16.h),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 12.w,
-            mainAxisSpacing: 12.h,
-            childAspectRatio: 1,
+        Container(
+          padding: EdgeInsets.all(20.w),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20.r),
+            border: Border.all(
+              color: DesignSystem.border,
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          itemCount: avatars.length,
-          itemBuilder: (context, index) {
-            final avatar = avatars[index];
-            final isSelected = selectedAvatar == avatar['name'] as String;
-            
-            return GestureDetector(
-              onTap: () => onAvatarSelected(avatar['name'] as String),
-              child: Container(
+          child: Column(
+            children: [
+              // Current Avatar Display
+              Container(
+                width: 100.w,
+                height: 100.h,
                 decoration: BoxDecoration(
-                  color: isSelected 
-                    ? (avatar['color'] as Color).withOpacity(0.1)
-                    : Colors.white,
-                  borderRadius: BorderRadius.circular(16.r),
-                  border: Border.all(
-                    color: isSelected 
-                      ? avatar['color'] as Color
-                      : AppColors.border,
-                    width: isSelected ? 2 : 1,
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      DesignSystem.blue500.withOpacity(0.1),
+                      DesignSystem.purple500.withOpacity(0.1),
+                    ],
                   ),
-                  boxShadow: isSelected ? [
-                    BoxShadow(
-                      color: (avatar['color'] as Color).withOpacity(0.2),
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
-                    ),
-                  ] : null,
+                  border: Border.all(
+                    color: DesignSystem.blue500.withOpacity(0.3),
+                    width: 2,
+                  ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      avatar['icon'] as IconData,
-                      color: avatar['color'] as Color,
-                      size: 28.w,
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      avatar['name'] as String,
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ],
+                child: Center(
+                  child: Icon(
+                    Icons.person_rounded,
+                    color: DesignSystem.blue500,
+                    size: 50.w,
+                  ),
                 ),
               ),
-            );
-          },
+              SizedBox(height: 20.h),
+              Text(
+                'Upload Your Photo',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: DesignSystem.textPrimary,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                'Choose a photo from your gallery or take a new one',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  color: DesignSystem.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 20.h),
+              // Upload Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 48.h,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: DesignSystem.border,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: TextButton.icon(
+                        onPressed: () => _pickImageFromGallery(),
+                        style: TextButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.photo_library_rounded,
+                          color: DesignSystem.blue500,
+                          size: 20.w,
+                        ),
+                        label: Text(
+                          'Gallery',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: DesignSystem.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: Container(
+                      height: 48.h,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            DesignSystem.blue500,
+                            DesignSystem.purple500,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: DesignSystem.blue500.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TextButton.icon(
+                        onPressed: () => _pickImageFromCamera(),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.camera_alt_rounded,
+                          color: Colors.white,
+                          size: 20.w,
+                        ),
+                        label: Text(
+                          'Camera',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      
+      if (image != null) {
+        // Handle the selected image
+        print('📸 Image selected from gallery: ${image.path}');
+        // You can add logic here to update the avatar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Photo selected from gallery'),
+            backgroundColor: DesignSystem.green500,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error picking image from gallery: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error selecting photo: $e'),
+          backgroundColor: DesignSystem.red500,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      
+      if (image != null) {
+        // Handle the selected image
+        print('📸 Image captured from camera: ${image.path}');
+        // You can add logic here to update the avatar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Photo captured from camera'),
+            backgroundColor: DesignSystem.green500,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error capturing image from camera: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error capturing photo: $e'),
+          backgroundColor: DesignSystem.red500,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildTargetBandSection() {
@@ -3181,39 +4035,99 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
+        Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(6.w),
+              decoration: BoxDecoration(
+                color: DesignSystem.blue500.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6.r),
+              ),
+              child: Icon(
+                icon,
+                color: DesignSystem.blue500,
+                size: 16.w,
+              ),
+            ),
+            SizedBox(width: 8.w),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+                color: DesignSystem.textPrimary,
+              ),
+            ),
+          ],
         ),
-        SizedBox(height: 8.h),
-        TextField(
-          controller: controller,
-          enabled: enabled,
-          style: TextStyle(
-            fontSize: 16.sp,
-            color: AppColors.textPrimary,
+        SizedBox(height: 12.h),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          decoration: InputDecoration(
-            hintText: hint,
-            prefixIcon: Icon(icon, color: AppColors.primary),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: AppColors.border),
+          child: TextField(
+            controller: controller,
+            enabled: enabled,
+            style: TextStyle(
+              fontSize: 16.sp,
+              color: DesignSystem.textPrimary,
+              fontWeight: FontWeight.w500,
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: AppColors.border),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(
+                fontSize: 16.sp,
+                color: DesignSystem.textTertiary,
+                fontWeight: FontWeight.w400,
+              ),
+              prefixIcon: Container(
+                margin: EdgeInsets.all(12.w),
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  color: enabled 
+                      ? DesignSystem.blue500.withOpacity(0.1)
+                      : DesignSystem.surfaceGray,
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                child: Icon(
+                  icon,
+                  color: enabled ? DesignSystem.blue500 : DesignSystem.textTertiary,
+                  size: 20.w,
+                ),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16.r),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16.r),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16.r),
+                borderSide: BorderSide(
+                  color: DesignSystem.blue500,
+                  width: 2,
+                ),
+              ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16.r),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: enabled ? Colors.white : DesignSystem.surfaceGray,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 20.w,
+                vertical: 16.h,
+              ),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: AppColors.primary, width: 2),
-            ),
-            filled: true,
-            fillColor: enabled ? Colors.white : const Color(0xFFF8FAFC),
           ),
         ),
       ],
@@ -3420,6 +4334,203 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
         return Icons.timer_rounded;
       default:
         return Icons.emoji_events_rounded;
+    }
+  }
+
+  Widget _buildLogoutButton() {
+    return Container(
+      width: double.infinity,
+      height: 56.h,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.red.shade500,
+            Colors.red.shade600,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            _performHapticFeedback();
+            _logout();
+          },
+          borderRadius: BorderRadius.circular(16.r),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.logout_rounded,
+                color: Colors.white,
+                size: 24.w,
+              ),
+              SizedBox(width: 12.w),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _logout() async {
+    // Show confirmation dialog
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        title: Text(
+          'Logout',
+          style: TextStyle(
+            fontSize: 20.sp,
+            fontWeight: FontWeight.w600,
+            color: DesignSystem.textPrimary,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to logout?',
+          style: TextStyle(
+            fontSize: 16.sp,
+            color: DesignSystem.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: DesignSystem.textSecondary,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'Logout',
+              style: TextStyle(
+                color: Colors.red.shade600,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true) {
+      // Store the current context before any async operations
+      final currentContext = context;
+      
+      try {
+        // Show loading indicator
+        showDialog(
+          context: currentContext,
+          barrierDismissible: false,
+          builder: (context) => Center(
+            child: Container(
+              padding: EdgeInsets.all(24.w),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(
+                    color: DesignSystem.blue500,
+                  ),
+                  SizedBox(height: 16.h),
+                  Text(
+                    'Logging out...',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      color: DesignSystem.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        // Sign out from Firebase
+        await FirebaseAuth.instance.signOut();
+        
+        // Track logout analytics
+        await _analytics.logEvent(name: 'user_logout');
+        
+        // Close loading dialog using the stored context
+        if (mounted && currentContext.mounted) {
+          Navigator.of(currentContext).pop();
+        }
+
+        // Navigate to splash screen
+        if (mounted && currentContext.mounted) {
+          Navigator.pushAndRemoveUntil(
+            currentContext,
+            MaterialPageRoute(builder: (context) => const SplashScreen()),
+            (route) => false,
+          );
+        }
+
+        print('✅ User logged out successfully');
+      } catch (e) {
+        // Close loading dialog using the stored context
+        if (mounted && currentContext.mounted) {
+          Navigator.of(currentContext).pop();
+        }
+        
+        // Show error message
+        if (mounted && currentContext.mounted) {
+          ScaffoldMessenger.of(currentContext).showSnackBar(
+            SnackBar(
+              content: Text('Logout failed: $e'),
+              backgroundColor: Colors.red.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+            ),
+          );
+        }
+
+        print('❌ Logout error: $e');
+      }
+    }
+  }
+
+  /// Safe haptic feedback that doesn't crash on unsupported devices
+  void _performHapticFeedback() {
+    try {
+      HapticFeedback.lightImpact();
+    } catch (e) {
+      // Ignore haptic feedback errors on unsupported devices
+      print('⚠️ Haptic feedback not supported on this device');
     }
   }
 }
