@@ -39,6 +39,9 @@ class FirestoreService {
         await userRef.set({
           FirestoreConstants.lastActiveAtField: FieldValue.serverTimestamp()
         }, SetOptions(merge: true));
+        
+        // Ensure subscription collection exists (migration for existing users)
+        await _ensureSubscriptionCollection(user.uid);
         return;
       }
 
@@ -49,6 +52,31 @@ class FirestoreService {
     } catch (e) {
       debugPrint('❌ Error in ensureUserBootstrap: $e');
       rethrow;
+    }
+  }
+
+  /// Ensure subscription collection exists (for existing users migration)
+  Future<void> _ensureSubscriptionCollection(String userId) async {
+    try {
+      final subscriptionRef = _db
+          .collection('users')
+          .doc(userId)
+          .collection('subscription')
+          .doc('premium');
+      
+      final exists = await subscriptionRef.get();
+      
+      if (!exists.exists) {
+        await subscriptionRef.set({
+          'isActive': false,
+          'expiryDate': Timestamp.fromDate(DateTime(1970, 1, 1)),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'months': 0,
+        });
+        debugPrint('✅ Created subscription collection for user: $userId');
+      }
+    } catch (e) {
+      debugPrint('❌ Error ensuring subscription collection: $e');
     }
   }
 
@@ -145,6 +173,18 @@ class FirestoreService {
         'ielts_practice_streak': 0,
         'career_swipe_streak': 0,
         'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Initialize subscription collection (for future premium activation)
+      await _db.collection(FirestoreConstants.usersCollection)
+          .doc(userId)
+          .collection('subscription')
+          .doc('premium')
+          .set({
+        'isActive': false,
+        'expiryDate': Timestamp.fromDate(DateTime(1970, 1, 1)), // Default expired
+        'updatedAt': FieldValue.serverTimestamp(),
+        'months': 0,
       });
     } catch (e) {
       debugPrint('❌ Error in createUserProfile: $e');

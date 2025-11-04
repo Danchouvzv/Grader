@@ -76,12 +76,12 @@ class SubscriptionLimitService {
 
     // Check Firestore
     try {
-      final doc = await _firestore
+      final subscriptionRef = _firestore
           .collection('users')
           .doc(user.uid)
-          .collection('subscription')
-          .doc('premium')
-          .get();
+          .collection('subscription');
+      
+      final doc = await subscriptionRef.doc('premium').get();
 
       if (doc.exists) {
         final data = doc.data()!;

@@ -49,6 +49,10 @@ class _EnhancedIeltsSpeakingPageState extends State<EnhancedIeltsSpeakingPage>
     
     // Debug: Check API configuration (only log, don't initialize)
     print('🔑 OpenAI API Key configured: ${ApiConfig.isOpenAiConfigured}');
+    if (!ApiConfig.isOpenAiConfigured) {
+      print('⚠️ OpenAI API Key не сконфигурирован!');
+      print('   API Key: ${ApiConfig.openAiApiKey.substring(0, 8)}...');
+    }
   }
 
   @override
