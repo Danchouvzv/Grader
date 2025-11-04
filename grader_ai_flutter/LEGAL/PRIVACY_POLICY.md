@@ -30,7 +30,7 @@ We use the following third-party services that may process your data:
 - **Firebase** (Google): Authentication, data storage, analytics
 - **OpenAI**: AI analysis and feedback generation
 - **Google Speech-to-Text**: Audio transcription
-- **Apple/Google**: Payment processing for subscriptions
+- **Apple App Store**: Payment processing for in-app purchases (when available)
 
 ## 5. Data Storage and Security
 - **Location**: Data is stored in secure cloud services (Firebase, Google Cloud)
@@ -45,9 +45,11 @@ We use the following third-party services that may process your data:
 - **Consent**: We will ask for your explicit consent before sharing data for any other purpose
 
 ## 7. Subscriptions and Payments
-- **Payment processing**: Handled by Apple App Store or Google Play Store
-- **Payment data**: We do not store full payment details
-- **Subscription data**: We track subscription status for feature access
+- **Payment methods**: Premium subscriptions are available by request through our support channels
+- **Payment processing**: When available, payments may be processed through Apple App Store In-App Purchases or direct payment methods
+- **Payment data**: We do not store full payment details or credit card information
+- **Subscription data**: We track subscription status for feature access in our secure database
+- **Contact**: For subscription inquiries, contact support@grader.ai
 
 ## 8. Your Rights
 - **Access**: Request a copy of your personal data

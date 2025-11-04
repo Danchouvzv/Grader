@@ -1,11 +1,13 @@
 class ApiConfig {
   // OpenAI Configuration
+  // Get API key from environment or use default
+  // IMPORTANT: Replace with your REAL OpenAI API key from https://platform.openai.com/
   static const String openAiApiKey = String.fromEnvironment(
     'OPENAI_API_KEY',
-    defaultValue: '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',
+    defaultValue: 'YOUR_OPENAI_API_KEY_HERE', // Set via environment variable or replace with actual key
   );
   
-  static const String openAiBaseUrl = 'https://api.openai.com/v1';
+  static const String openAiBaseUrl = 'https://api.openai.com/v1'; // Direct OpenAI API
   static const String openAiModel = 'gpt-4o'; // Latest model for best results
   
   // Google Cloud Speech-to-Text Configuration  

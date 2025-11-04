@@ -326,6 +326,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
         gradient: DesignSystem.backgroundGradient,
       ),
       child: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: 100.h), // Add bottom padding to prevent overflow
         child: Column(
           children: [
             SizedBox(height: 20.h),
@@ -1082,12 +1083,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
   Widget _buildPremiumButton() {
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const SubscriptionPage(),
-          ),
-        );
+        _showPremiumActivationDialog();
       },
       borderRadius: BorderRadius.circular(DesignSystem.radiusLarge.r),
       child: Container(
@@ -4532,5 +4528,34 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
       // Ignore haptic feedback errors on unsupported devices
       print('⚠️ Haptic feedback not supported on this device');
     }
+  }
+
+  /// Show premium activation dialog
+  void _showPremiumActivationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🚀 Upgrade to Premium'),
+        content: const Text(
+          'Unlock unlimited IELTS speaking practice with Premium!\n\n'
+          '📱 Contact us via Telegram to activate Premium:\n@your_telegram_username\n\n'
+          'After payment, your premium will be activated within 24 hours.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Maybe Later'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Open Telegram
+              // You can add url_launcher here if needed
+            },
+            child: const Text('Open Telegram'),
+          ),
+        ],
+      ),
+    );
   }
 }

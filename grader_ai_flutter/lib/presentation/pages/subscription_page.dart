@@ -702,7 +702,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> with TickerProvider
                 child: Center(
                   child: Text(
                     _selectedPlan != null
-                        ? 'Continue to Payment'
+                        ? 'Get Premium'
                         : 'Select a Plan',
                     style: DesignSystem.bodyLarge.copyWith(
                       color: Colors.white,
@@ -729,63 +729,41 @@ class _SubscriptionPageState extends State<SubscriptionPage> with TickerProvider
   }
 
   Future<void> _handleSubscription(String productId, bool isMock) async {
-    // Redirect to Telegram for subscription
-    await _openTelegramSubscription();
+    // Show information dialog instead of redirecting to external payment
+    _showPremiumInfoDialog();
   }
 
-  Future<void> _openTelegramSubscription() async {
-    try {
-      // Open Telegram to @doniponi
-      const telegramUrl = 'https://t.me/doniponi';
-      
-      // Show loading
-      setState(() => _isLoading = true);
-      
-      // Try to open Telegram app first
-      final telegramAppUrl = 'tg://resolve?domain=doniponi';
-      
-      // Import url_launcher
-      // ignore: avoid_web_libraries_in_flutter
-      if (await canLaunchUrl(Uri.parse(telegramAppUrl))) {
-        await launchUrl(Uri.parse(telegramAppUrl));
-      } else if (await canLaunchUrl(Uri.parse(telegramUrl))) {
-        await launchUrl(Uri.parse(telegramUrl));
-      } else {
-        throw Exception('Cannot open Telegram');
-      }
-      
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('📱 Opening Telegram... Contact @doniponi for subscription'),
-            backgroundColor: DesignSystem.blue600,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r),
-            ),
-            duration: const Duration(seconds: 3),
+  void _showPremiumInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Premium Subscription'),
+        content: const Text(
+          'Premium subscriptions are currently available by request. '
+          'Please contact support at support@grader.ai for subscription options.\n\n'
+          'Premium features include:\n'
+          '• Unlimited practice sessions\n'
+          '• Advanced analytics\n'
+          '• Priority support',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
           ),
-        );
-      }
-      
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to open Telegram: $e'),
-            backgroundColor: DesignSystem.red500,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r),
-            ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Open email app (not Telegram) - this is allowed
+              launchUrl(
+                Uri.parse('mailto:support@grader.ai?subject=Premium Subscription Request'),
+                mode: LaunchMode.externalApplication,
+              );
+            },
+            child: const Text('Contact Support'),
           ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+        ],
+      ),
+    );
   }
 }
